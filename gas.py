@@ -12,33 +12,27 @@ class GASCell(nn.Module):
                  ) -> None:
         
         super(GASCell, self).__init__()
-        
-        self.mu = None
-        self.var = None
         self.eta_mu = eta_mu
         self.eta_var = eta_var
     
-    def set_mu_var(self, mu:Tensor, var:Tensor) -> None:
-        self.mu = mu
-        self.var = var
 
-    def forward(self, x:Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def update_mu_var(self, x:Tensor, mu:Tensor, var:Tensor) -> tuple[Tensor, Tensor]:
+        # update mu and var
+        mu += self.eta_mu * (x - mu)
+        var = var * (1 - self.eta_var) + self.eta_var * (x - mu)**2
+        return mu, var
 
-        if self.mu is None or self.var is None:
-            raise ValueError("You must set means and variances first! Use set_mu_var method.")
-        
-        # expected tensor of shape (n_features)
+
+    def forward(self, x:Tensor, mu:Tensor, var:Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        # check input: expected tensor of shape (n_features)
         if x.dim() != 1:
             raise ValueError(f"Wrong number of dimensions. Expected 1, got {x.dim()}.")
-        
-        # update mu and var
-        self.mu += self.eta_mu * (x - self.mu)
-        self.var = self.var * (1 - self.eta_var) + self.eta_var * (x - self.mu)**2
-        
+        # update
+        mu, var = self.update_mu_var(x, mu, var)
         # normalize input
-        norm_x = (x - self.mu) / torch.sqrt(self.var)
+        norm_x = (x - mu) / torch.sqrt(var)
 
-        return norm_x, self.mu, self.var
+        return norm_x, mu, var
 
 
 
@@ -49,30 +43,36 @@ class GASLayer(nn.Module):
                  eta_var: float
                  ) -> None:
         
-        super(GASLayer, self).__init__()
-        
+        super(GASLayer, self).__init__()    
         self.gas_cell = GASCell(eta_mu, eta_var)
     
-    
-    def init_mu_var(self, mu:Tensor, var:Tensor) -> None:
-        self.gas_cell.set_mu_var(mu, var)
+    def init_mu_var(self, x:Tensor) -> tuple[Tensor, Tensor]:
+        # initialize them as mean and variance of the whole time series
+        # x is assumed (ts_length, n_features)
+        # # we can try other methods too
+        mu = torch.mean(x, dim=0)
+        var = torch.var(x, dim=0)
+        return mu, var
 
-
-    def forward(self, x:Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, 
+                x:Tensor,
+                mu:float | None = None,
+                var:float | None = None) -> tuple[Tensor, Tensor]:
+        
+        # check input
         input_dim = x.dim()
         if not (input_dim == 2 or input_dim== 3):
             raise ValueError(f"Wrong number of dimensions. Expected 2 or 3, got {input_dim}.")
-        
         # assumed tensor of shape (ts_length, n_features) or (1, ts_length, n_features)
         if input_dim == 3:
             if x.shape[0] != 1:
                 raise ValueError("This method supports only online learning.")
             x = x.squeeze(0)
         
-        # initialize mu and vars of the gas cell as first els of the time series
-        mean_x = torch.mean(x, dim=0)
-        std_x = torch.std(x, dim=0)
-        self.init_mu_var(mean_x, std_x)
+        # initialize mu and vars of the gas cell if they are None
+        if mu is None or var is None:
+            assert mu is None and var is None, "You must pass either mu and var or none of them"
+            mu, var = self.init_mu_var(x)
 
         # initialize results
         norm_x = torch.empty_like(x)
@@ -80,7 +80,9 @@ class GASLayer(nn.Module):
         vars = torch.empty_like(x)
         
         for i in range(x.shape[0]):
-            norm_x[i], mus[i], vars[i] = self.gas_cell(x[i])
+            x_norm, mu, var = self.gas_cell(x[i], mu, var)
+            # save results
+            norm_x[i], mus[i], vars[i] = x_norm, mu, var
         
         # return tensor of the same shape as original input
         if input_dim == 3:
