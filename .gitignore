@@ -167,3 +167,5 @@ cython_debug/
 
 
 DAIN_DATA
+cl_venv
+.vscode
