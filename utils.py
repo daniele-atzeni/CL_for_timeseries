@@ -1,4 +1,6 @@
+import torch
 from torch import Tensor
+from torch.utils.data import TensorDataset
 import numpy as np
 import math
 
@@ -84,3 +86,39 @@ def generate_dataset_multivariate(ts, ts_length, el_to_predict):
     ys = Tensor(np.array(ys))
 
     return xs, ys
+
+
+"""
+def create_forecasting_dataset_old(
+    ts: Tensor, mus: Tensor, vars: Tensor, ts_len: int, len_to_pred: int, n_samples: int
+) -> TensorDataset:
+    # ts, mus and vars are assumed to be of the same shape (ts_length, n_features)
+    starting_indices = torch.randint(0, ts.shape[0] - len_to_pred, (n_samples,))
+    ts_x = [ts[start : start + ts_len, :] for start in starting_indices]
+    mus_x = [mus[start : start + ts_len, :] for start in starting_indices]
+    vars_x = [vars[start : start + ts_len, :] for start in starting_indices]
+    ts_y = [
+        ts[start + ts_len : start + ts_len + len_to_pred, :]
+        for start in starting_indices
+    ]
+    # mus_y = [mus[start+ts_len: start+ts_len+len_to_pred, :] for start in starting_indices]
+    # vars_y = [vars[start+ts_len: start+ts_len+len_to_pred, :] for start in starting_indices]
+    return TensorDataset(ts_x, mus_x, vars_x, ts_y)  # , mus_y, vars_y)
+"""
+
+
+def create_forecasting_dataset(
+    ts: Tensor, ts_len: int, len_to_pred: int, n_samples: int
+) -> TensorDataset:
+    # ts, mus and vars are assumed to be of the same shape (ts_length, n_features)
+    starting_indices = np.random.randint(  # the biggest index we can start with is ts_length - ts_piece_length - len_to_pred
+        0, ts.shape[0] - ts_len - len_to_pred, (n_samples,)
+    )
+    ts_indices = [torch.arange(start, start + ts_len) for start in starting_indices]
+    ts_x = [ts[ts_ind, :] for ts_ind in ts_indices]
+    ts_y = [
+        ts[start + ts_len : start + ts_len + len_to_pred, :]
+        for start in starting_indices
+    ]
+
+    return TensorDataset(torch.stack(ts_indices), torch.stack(ts_x), torch.stack(ts_y))

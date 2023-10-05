@@ -81,10 +81,10 @@ class GASLayer(nn.Module):
         mus = torch.empty_like(x)
         vars = torch.empty_like(x)
 
-        for i in range(x.shape[0]):
-            x_norm, mu, var = self.gas_cell(x[i], mu, var)
+        for i, x_i in enumerate(x):
+            norm_x_i, mu, var = self.gas_cell(x_i, mu, var)
             # save results
-            norm_x[i], mus[i], vars[i] = x_norm, mu, var
+            norm_x[i], mus[i], vars[i] = norm_x_i, mu, var
 
         # return tensor of the same shape as original input
         if input_dim == 3:
@@ -96,6 +96,30 @@ class GASLayer(nn.Module):
         additional_info = torch.cat((mus, vars), dim=-1)
 
         return norm_x, additional_info
+
+
+class GASNormLayer(nn.Module):
+    def __init__(self, eta_mu: float, eta_var: float, ts_processer: nn.Module) -> None:
+        super(GASNormLayer, self).__init__()
+
+        self.gas_layer = GASLayer(eta_mu, eta_var)
+        self.ts_processer = ts_processer
+
+    def forward(
+        self, x: Tensor, mu: float | None = None, var: float | None = None
+    ) -> Tensor:
+        if x.dim() != 3:
+            raise ValueError(f"Wrong number of dimensions. Expected 3, got {x.dim()}.")
+
+        # only online mode supported 'til now
+        if x.shape[0] != 1:
+            raise ValueError("This method supports only online learning.")
+
+        norm_x, add_info = self.gas(x)
+        processed_norm_x = self.ts_processer(norm_x)
+        mus, vars = add_info[:, : x.shape[1]], add_info[:, x.shape[1] :]
+
+        return vars * (processed_norm_x + mus)
 
 
 class GASModel(nn.Module):
@@ -121,14 +145,12 @@ class GASModel(nn.Module):
         if x.shape[0] != 1:
             raise ValueError("This method supports only online learning.")
 
-        x, add_info = self.gas(
-            x
-        )  # tensors shape (1, ts_length, n_features) and (1, ts_length, 2*n_features)
+        x, add_info = self.gas(x)
+        # tensors shape (1, ts_length, n_features) and (1, ts_length, 2*n_features)
 
         ####################### possibly a lot of new features!!!
-        add_info = add_info.reshape(
-            x.shape[0], -1
-        )  # this becomes (batch, ts_length * 2 * n_features)
+        add_info = add_info.reshape(x.shape[0], -1)
+        # this becomes (batch, ts_length * 2 * n_features)
         #######################
 
         # process the normalized timeseries
