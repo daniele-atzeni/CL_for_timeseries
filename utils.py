@@ -149,3 +149,9 @@ def convert_gluon_dataset_to_train_tensor(ts: Dataset, pad: float = 0) -> Tensor
             el_to_add = torch.zeros(n_el_to_add) + pad
             list_to_stack[i] = torch.cat([el, el_to_add])
     return torch.stack(list_to_stack)
+
+
+def get_index_from_Period(start, start_forecast) -> int:
+    # start and start_forecast are two tensor of shapes (batch) of pd.Periods
+    # we want to get a tensor of starting indices so that we are able to retrieve the correct mu from the normalizer
+    return (start_forecast - start).n

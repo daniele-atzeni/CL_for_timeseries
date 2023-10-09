@@ -36,3 +36,72 @@ class FFNN(nn.Module):
         x = self.activation(self.hid_2(x))
         x = self.out_layer(x)
         return x
+
+
+from gluonts.mx.model.transformer import TransformerEstimator
+from functools import partial
+from typing import List, Optional
+
+from gluonts.mx.distribution import DistributionOutput, StudentTOutput
+from gluonts.mx.trainer import Trainer
+from gluonts.transform import InstanceSampler
+from gluonts.time_feature import TimeFeature
+
+from gluonts.mx.model.transformer._network import TransformerTrainingNetwork
+
+class GASTransformerTrainingNetwork(TransformerTrainingNetwork):
+class GASTransformerEstimator(TransformerEstimator):
+    def __initi____init__(
+        self,
+        mean_layer: nn.Module,
+        freq: str,
+        prediction_length: int,
+        context_length: Optional[int] = None,
+        trainer: Trainer = Trainer(),
+        dropout_rate: float = 0.1,
+        cardinality: Optional[List[int]] = None,
+        embedding_dimension: int = 20,
+        distr_output: DistributionOutput = StudentTOutput(),
+        model_dim: int = 32,
+        inner_ff_dim_scale: int = 4,
+        pre_seq: str = "dn",
+        post_seq: str = "drn",
+        act_type: str = "softrelu",
+        num_heads: int = 8,
+        scaling: bool = True,
+        lags_seq: Optional[List[int]] = None,
+        time_features: Optional[List[TimeFeature]] = None,
+        use_feat_dynamic_real: bool = False,
+        use_feat_static_cat: bool = False,
+        num_parallel_samples: int = 100,
+        train_sampler: Optional[InstanceSampler] = None,
+        validation_sampler: Optional[InstanceSampler] = None,
+        batch_size: int = 32,
+    ) -> None:
+        super(GASTransformerEstimator, self).__init__(
+            freq,
+            prediction_length,
+            context_length,
+            trainer,
+            dropout_rate,
+            cardinality,
+            embedding_dimension,
+            distr_output,
+            model_dim,
+            inner_ff_dim_scale,
+            pre_seq,
+            post_seq,
+            act_type,
+            num_heads,
+            scaling,
+            lags_seq,
+            time_features,
+            use_feat_dynamic_real,
+            use_feat_static_cat,
+            num_parallel_samples,
+            train_sampler,
+            validation_sampler,
+            batch_size,
+        )
+
+        self.mean_layer = mean_layer

@@ -76,13 +76,15 @@ class SumDenormalizer(Denormalizer):
 
     def process_mus(self, mus: Tensor) -> Tensor:
         # mus are expected as (batch, ts_length, n_features)
+        batch, _, n_features = mus.shape
         mus = mus.reshape((mus.shape[0], -1))
-        return self.mus_encoder(mus)
+        return self.mus_encoder(mus).reshape((batch, -1, n_features))
 
     def process_vars(self, vars: Tensor) -> Tensor:
         # vars are expected as (batch, ts_length, n_features)
+        batch, _, n_features = vars.shape
         vars = vars.reshape((vars.shape[0], -1))
-        return self.vars_encoder(vars)
+        return self.vars_encoder(vars).reshape((batch, -1, n_features))
 
     def get_mus_params(self):
         return self.mus_encoder.parameters()
