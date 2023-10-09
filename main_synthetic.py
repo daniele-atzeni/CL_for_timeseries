@@ -4,7 +4,7 @@ from normalizer import GASSimpleGaussian
 from models import FFNN
 from denormalizer import SumDenormalizer
 
-from experiment import run_experiment
+from experiment import run_torch_experiment
 
 
 if __name__ == "__main__":
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     BATCH_SIZE = 32
     NUM_EPOCHS = 3
 
-    run_experiment(
+    run_torch_experiment(
         ts,
         PERC_TRAINING_TS,
         TS_LEN,

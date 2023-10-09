@@ -4,6 +4,8 @@ from torch.utils.data import TensorDataset
 import numpy as np
 import math
 
+from gluonts.dataset import Dataset
+
 
 def generate_timeseries(growing):
     """
@@ -111,14 +113,39 @@ def create_forecasting_dataset(
     ts: Tensor, ts_len: int, len_to_pred: int, n_samples: int
 ) -> TensorDataset:
     # ts, mus and vars are assumed to be of the same shape (ts_length, n_features)
+    print(
+        f"Creating the dataset with {n_samples} samples of shape {ts_len} as input and {len_to_pred} as output"
+    )
+    print(f"Original ts shape: {ts.shape}")
     starting_indices = np.random.randint(  # the biggest index we can start with is ts_length - ts_piece_length - len_to_pred
         0, ts.shape[0] - ts_len - len_to_pred, (n_samples,)
     )
     ts_indices = [torch.arange(start, start + ts_len) for start in starting_indices]
+    print(f"Generated {len(ts_indices)} indices")
     ts_x = [ts[ts_ind, :] for ts_ind in ts_indices]
+    print(f"Initialized input with {len(ts_x)} elements of shape {ts_x[0].shape}")
     ts_y = [
         ts[start + ts_len : start + ts_len + len_to_pred, :]
         for start in starting_indices
     ]
+    print(f"Initialized output with {len(ts_y)} elements of shape {ts_y[0].shape}")
 
-    return TensorDataset(torch.stack(ts_indices), torch.stack(ts_x), torch.stack(ts_y))
+    indices = torch.stack(ts_indices)
+    xs = torch.stack(ts_x)
+    ys = torch.stack(ts_y)
+
+    print(f"Stacked tensors")
+
+    return TensorDataset(indices, xs, ys)
+
+
+def convert_gluon_dataset_to_train_tensor(ts: Dataset, pad: float = 0) -> Tensor:
+    list_to_stack = [torch.from_numpy(ts_entry["target"]) for ts_entry in ts]
+    # padding if el of different shapes
+    max_len = max([ts_entry.shape[0] for ts_entry in list_to_stack])
+    for i, el in enumerate(list_to_stack):
+        if el.shape[0] < max_len:
+            n_el_to_add = max_len - el.shape[0]
+            el_to_add = torch.zeros(n_el_to_add) + pad
+            list_to_stack[i] = torch.cat([el, el_to_add])
+    return torch.stack(list_to_stack)

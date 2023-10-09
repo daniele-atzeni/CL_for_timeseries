@@ -61,18 +61,18 @@ class SumDenormalizer(Denormalizer):
 
     def forward(
         self,
-        proc_x: Tensor,
+        proc_x: Tensor | None,
         mus: Tensor,
-        vars: Tensor,
-        phase: int,
+        vars: Tensor | None,
     ) -> Tensor:
-        if phase == 0:
-            return self.process_mus(mus)
-        if phase == 1:
-            return proc_x + self.process_mus(mus)
-        if phase == 2:
-            return proc_x * self.process_vars(vars) + self.process_mus(mus)
-        raise ValueError(f"Unknown phase {phase}")
+        proc_mus = self.process_mus(mus)
+        if proc_x is None:
+            proc_x = torch.zeros_like(proc_mus)
+        if vars is None:
+            proc_vars = torch.zeros_like(proc_mus)
+        else:
+            proc_vars = self.process_vars(vars)
+        return proc_x * proc_vars + proc_mus
 
     def process_mus(self, mus: Tensor) -> Tensor:
         # mus are expected as (batch, ts_length, n_features)
