@@ -63,12 +63,12 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         batch_normalization: bool,
         mean_scaling: bool,
         distr_output: DistributionOutput,
-        weight: np.ndarray,  ## my code here
-        bias: np.ndarray,  ## my code here
         n_features: int,  ## my code here
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
+
+        self.n_features = n_features  ## my code here
 
         self.num_hidden_dimensions = num_hidden_dimensions
         self.prediction_length = prediction_length
@@ -77,41 +77,20 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         self.mean_scaling = mean_scaling
         self.distr_output = distr_output
 
-        print(
-            f"Initializing the model. Dataset characteristics: context length: {self.context_length}, prediction length: {self.prediction_length}, number of features: {n_features}"
-        )
-
         with self.name_scope():
             self.distr_args_proj = self.distr_output.get_args_proj()
-            print(f"Initializing the sequential part of the model...")
-            print(
-                f"Hidden dimensions: {self.num_hidden_dimensions}, input dimension: {self.context_length * n_features}, output dimension: {self.prediction_length * n_features}"
-            )
-            print(
-                f"In reality, input dimension is the number of features, i.e. {n_features}. I don't know why"
-            )
             self.mlp = mx.gluon.nn.HybridSequential()
             dims = self.num_hidden_dimensions
             for layer_no, units in enumerate(dims[:-1]):
                 self.mlp.add(mx.gluon.nn.Dense(units=units, activation="relu"))
                 if self.batch_normalization:
                     self.mlp.add(mx.gluon.nn.BatchNorm())
-            """
-            old code
             self.mlp.add(mx.gluon.nn.Dense(units=prediction_length * dims[-1]))
             self.mlp.add(
                 mx.gluon.nn.HybridLambda(
                     lambda F, o: F.reshape(o, (-1, prediction_length, dims[-1]))
                 )
-            )"""
-            ## my code here
-            self.mlp.add(mx.gluon.nn.Dense(units=prediction_length * n_features))
-            self.mlp.add(
-                mx.gluon.nn.HybridLambda(
-                    lambda F, o: F.reshape(o, (-1, prediction_length, n_features))
-                )
             )
-
             self.scaler = MeanScaler() if mean_scaling else NOPScaler()
 
             """
@@ -120,23 +99,15 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
             # we must include the linear layer for the means initializing it with the weights and biases
             # the number of units of the weight is the number of features times the prediction length
             # its input number is the number of features times the context length
-            self.n_features = n_features
-            print(f"Initializing mean layer...")
-            print(
-                f"Number of input units: {self.n_features * self.context_length}, number of output units: {self.n_features * self.prediction_length}"
-            )
             self.mean_layer = mx.gluon.nn.HybridSequential()
             self.mean_layer.add(
                 mx.gluon.nn.Dense(
-                    units=self.prediction_length * self.n_features,
-                    in_units=self.context_length * self.n_features,
-                    weight_initializer=mx.init.Constant(mx.nd.array(weight)),
-                    bias_initializer=mx.init.Constant(mx.nd.array(bias)),
+                    units=self.prediction_length * dims[-1],
                 )
             )
             self.mean_layer.add(
                 mx.gluon.nn.HybridLambda(
-                    lambda F, o: F.reshape(o, (-1, prediction_length, n_features))
+                    lambda F, o: F.reshape(o, (-1, prediction_length, dims[-1]))
                 )
             )
             """

@@ -3,17 +3,18 @@ from gluonts.dataset.repository import get_dataset
 from gluonts.mx import Trainer  # SimpleFeedForwardEstimator
 
 
-from my_simple_feedforward._estimator import SimpleFeedForwardEstimator
+from my_simple_feedforward_joint_tr._estimator import SimpleFeedForwardEstimator
 from normalizer import GASSimpleGaussian
 from denormalizer import SumDenormalizer
 
 import torch
 
-dataset = get_dataset("m4_hourly")
-CONTEXT_LENGTH = 100
+dataset = get_dataset("australian_electricity_demand")
+
 len_to_pred = (
     dataset.metadata.prediction_length if dataset.metadata.prediction_length else 50
 )
+CONTEXT_LENGTH = 2 * len_to_pred
 n_features = len(list(dataset.train))
 
 train_torch_list = [torch.from_numpy(el["target"]) for el in dataset.train]
@@ -50,10 +51,19 @@ for i in range(normalizer.mus.shape[1]):
 input_dim = CONTEXT_LENGTH * n_features
 output_dim = len_to_pred * n_features
 denormalizer = SumDenormalizer(input_dim, output_dim)
-
+# get weights and biases from the denormalizer
+weight = denormalizer.mus_encoder.weight.detach().numpy()
+bias = denormalizer.mus_encoder.bias.detach().numpy()
+print(
+    f"Retrieved weight and bias from the denormalizer with shape: {weight.shape}, {bias.shape}"
+)
+# last shape of hidden dimensions must be the same as the output dimension!
+num_hidden_dimensions = [128, 64]
 estimator = SimpleFeedForwardEstimator(
-    denormalizer,
-    num_hidden_dimensions=[10],
+    weight,
+    bias,
+    n_features,
+    num_hidden_dimensions=num_hidden_dimensions,
     prediction_length=dataset.metadata.prediction_length,
     context_length=CONTEXT_LENGTH,
     trainer=Trainer(ctx="cpu", epochs=5, learning_rate=1e-3, num_batches_per_epoch=100),
