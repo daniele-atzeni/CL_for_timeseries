@@ -63,9 +63,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         batch_normalization: bool,
         mean_scaling: bool,
         distr_output: DistributionOutput,
-        weight: np.ndarray,  ## my code here
-        bias: np.ndarray,  ## my code here
-        n_features: int,  ## my code here
+        mean_layer,  ## my code here
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -77,73 +75,27 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         self.mean_scaling = mean_scaling
         self.distr_output = distr_output
 
-        print(
-            f"Initializing the model. Dataset characteristics: context length: {self.context_length}, prediction length: {self.prediction_length}, number of features: {n_features}"
-        )
-
         with self.name_scope():
             self.distr_args_proj = self.distr_output.get_args_proj()
-            print(f"Initializing the sequential part of the model...")
-            print(
-                f"Hidden dimensions: {self.num_hidden_dimensions}, input dimension: {self.context_length * n_features}, output dimension: {self.prediction_length * n_features}"
-            )
-            print(
-                f"In reality, input dimension is the number of features, i.e. {n_features}. I don't know why"
-            )
             self.mlp = mx.gluon.nn.HybridSequential()
             dims = self.num_hidden_dimensions
             for layer_no, units in enumerate(dims[:-1]):
                 self.mlp.add(mx.gluon.nn.Dense(units=units, activation="relu"))
                 if self.batch_normalization:
                     self.mlp.add(mx.gluon.nn.BatchNorm())
-            """
-            old code
             self.mlp.add(mx.gluon.nn.Dense(units=prediction_length * dims[-1]))
             self.mlp.add(
                 mx.gluon.nn.HybridLambda(
                     lambda F, o: F.reshape(o, (-1, prediction_length, dims[-1]))
                 )
-            )"""
-            ## my code here
-            self.mlp.add(mx.gluon.nn.Dense(units=prediction_length * n_features))
-            self.mlp.add(
-                mx.gluon.nn.HybridLambda(
-                    lambda F, o: F.reshape(o, (-1, prediction_length, n_features))
-                )
             )
-
             self.scaler = MeanScaler() if mean_scaling else NOPScaler()
 
-            """
-            my code here
-            """
-            # we must include the linear layer for the means initializing it with the weights and biases
-            # the number of units of the weight is the number of features times the prediction length
-            # its input number is the number of features times the context length
-            self.n_features = n_features
-            print(f"Initializing mean layer...")
-            print(
-                f"Number of input units: {self.n_features * self.context_length}, number of output units: {self.n_features * self.prediction_length}"
-            )
-            self.mean_layer = mx.gluon.nn.HybridSequential()
-            self.mean_layer.add(
-                mx.gluon.nn.Dense(
-                    units=self.prediction_length * self.n_features,
-                    in_units=self.context_length * self.n_features,
-                    weight_initializer=mx.init.Constant(mx.nd.array(weight)),
-                    bias_initializer=mx.init.Constant(mx.nd.array(bias)),
-                )
-            )
-            self.mean_layer.add(
-                mx.gluon.nn.HybridLambda(
-                    lambda F, o: F.reshape(o, (-1, prediction_length, n_features))
-                )
-            )
-            """
-            end of my code here
-            """
+            self.mean_layer = mean_layer  ## my code here
 
-    def get_distr_args(self, F, past_target: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    def get_distr_args(
+        self, F, past_target: Tensor, past_feat_dynamic_real: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Given past target values, applies the feed-forward network and maps the
         output to the parameter of probability distribution for future
@@ -165,42 +117,28 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         Tensor
             An array containing the scale of the distribution.
         """
-
-        """
-        my code here
-        """
-        # input values as double the amount of features because we included the means
-        # so we have to split the input into the means and the actual values
-        # the actual values are the first half of the input, the means in the second half
-
-        real_ts = mx.symbol.slice_axis(
-            past_target, axis=-1, begin=0, end=self.n_features
-        )
-        mean_data = mx.symbol.slice_axis(
-            past_target, axis=-1, begin=self.n_features, end=-1
-        )
-
-        # mean_data = mx.symbol.flatten(mean_data)       it is automatically done by the Dense layer
-        proc_means = self.mean_layer(mean_data)
-        """
-        end of my code here
-        """
-
-        """ changing names here from past_target to real_ts """
         scaled_target, target_scale = self.scaler(
-            real_ts,
-            F.ones_like(real_ts),
+            past_target,
+            F.ones_like(past_target),
         )
-        """"""
-
         mlp_outputs = self.mlp(scaled_target)
-        final_outputs = mlp_outputs + proc_means  ## my code here
-        """ changing names here from mlp_outputs to final_outputs """
-        distr_args = self.distr_args_proj(final_outputs)
-        """"""
+
+        distr_args = self.distr_args_proj(mlp_outputs)
+
         scale = target_scale.expand_dims(axis=1)
         loc = F.zeros_like(scale)
-        return distr_args, loc, scale
+
+        """My code here"""
+        # we must include the prediction of the linear layer for the means
+        pred_means = self.mean_layer(past_feat_dynamic_real)
+        # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
+        new_distr_args = tuple(
+            [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
+        )
+        # I hope that in distr_args[0] there is the mean
+        """ end """
+
+        return new_distr_args, loc, scale  # return distr_args, loc, scale
 
 
 class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
@@ -210,6 +148,7 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
         past_target: Tensor,
         future_target: Tensor,
         future_observed_values: Tensor,
+        past_feat_dynamic_real: Tensor,
     ) -> Tensor:
         """
         Computes a probability distribution for future data given the past, and
@@ -233,7 +172,9 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
         Tensor
             Loss tensor. Shape: (batch_size, ).
         """
-        distr_args, loc, scale = self.get_distr_args(F, past_target)
+        distr_args, loc, scale = self.get_distr_args(
+            F, past_target, past_feat_dynamic_real
+        )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
 
         # (batch_size, prediction_length, target_dim)
@@ -253,7 +194,12 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
         super().__init__(*args, **kwargs)
         self.num_parallel_samples = num_parallel_samples
 
-    def hybrid_forward(self, F, past_target: Tensor) -> Tensor:
+    def hybrid_forward(
+        self,
+        F,
+        past_target: Tensor,
+        past_feat_dynamic_real: Tensor,
+    ) -> Tensor:
         """
         Computes a probability distribution for future data given the past, and
         draws samples from it.
@@ -271,7 +217,9 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
             Prediction sample. Shape: (batch_size, samples, prediction_length).
         """
 
-        distr_args, loc, scale = self.get_distr_args(F, past_target)
+        distr_args, loc, scale = self.get_distr_args(
+            F, past_target, past_feat_dynamic_real
+        )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
 
         # (num_samples, batch_size, prediction_length)
@@ -287,7 +235,9 @@ class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
         super().__init__(*args, **kwargs)
         self.num_parallel_samples = num_parallel_samples
 
-    def hybrid_forward(self, F, past_target: Tensor) -> Tensor:
+    def hybrid_forward(
+        self, F, past_target: Tensor, past_feat_dynamic_real: Tensor
+    ) -> Tensor:
         """
         Computes the parameters of distribution for future data given the past,
         and draws samples from it.
@@ -308,5 +258,7 @@ class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
         Tensor
             An array containing the scale of the distribution.
         """
-        distr_args, loc, scale = self.get_distr_args(F, past_target)
+        distr_args, loc, scale = self.get_distr_args(
+            F, past_target, past_feat_dynamic_real
+        )
         return distr_args, loc, scale

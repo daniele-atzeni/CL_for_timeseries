@@ -120,9 +120,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     @validated()
     def __init__(
         self,
-        weight: np.ndarray,
-        bias: np.ndarray,
-        n_features: int,
+        mean_layer,  ## my code here
         prediction_length: int,
         sampling: bool = True,
         trainer: Trainer = Trainer(),
@@ -144,22 +142,6 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         """
         super().__init__(trainer=trainer, batch_size=batch_size)
 
-        """
-        my code here
-        """
-        # NB correct shapes
-        # we expect inputs as shape (batch_size, context_length, num_features)
-        # so input for the weights must be of shape (batch_size, context_length * num_features)
-        # the output of the layer must be broadcastable into shape (batch_size, prediction_length, num_features)
-        # so the weights must be of shape (context_length * num_features, prediction_length * num_features)
-        # the bias must be of shape (prediction_length * num_features)
-        self.weight = weight
-        self.bias = bias
-        self.n_features = n_features
-        """
-        end of my code
-        """
-
         assert prediction_length > 0, "The value of `prediction_length` should be > 0"
         assert (
             context_length is None or context_length > 0
@@ -170,6 +152,8 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         assert (
             num_parallel_samples > 0
         ), "The value of `num_parallel_samples` should be > 0"
+
+        self.mean_layer = mean_layer  ## my code here
 
         self.num_hidden_dimensions = (
             num_hidden_dimensions
@@ -216,6 +200,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
                 FieldName.INFO,
                 FieldName.START,
                 FieldName.TARGET,
+                FieldName.FEAT_DYNAMIC_REAL,
             ],
             allow_missing=True,
         ) + AddObservedValuesIndicator(
@@ -242,7 +227,10 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             instance_sampler=instance_sampler,
             past_length=self.context_length,
             future_length=self.prediction_length,
-            time_series_fields=[FieldName.OBSERVED_VALUES],
+            time_series_fields=[
+                FieldName.FEAT_DYNAMIC_REAL,  ## my code here
+                FieldName.OBSERVED_VALUES,
+            ],
         )
 
     def create_training_data_loader(
@@ -280,9 +268,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     # instance for analysis, see DeepARTrainingNetwork for an example.
     def create_training_network(self) -> HybridBlock:
         return SimpleFeedForwardTrainingNetwork(
-            weight=self.weight,  ## my code here
-            bias=self.bias,  ## my code here
-            n_features=self.n_features,  ## my code here
+            mean_layer=self.mean_layer,  ## my code here
             num_hidden_dimensions=self.num_hidden_dimensions,
             prediction_length=self.prediction_length,
             context_length=self.context_length,
@@ -298,8 +284,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
 
         if self.sampling is True:
             prediction_network = SimpleFeedForwardSamplingNetwork(
-                weight=self.weight,  ## my code here
-                bias=self.bias,  ## my code here
+                mean_layer=self.mean_layer,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,
@@ -320,8 +305,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
 
         else:
             prediction_network = SimpleFeedForwardDistributionNetwork(
-                weight=self.weight,  ## my code here
-                bias=self.bias,  ## my code here
+                mean_layer=self.mean_layer,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,

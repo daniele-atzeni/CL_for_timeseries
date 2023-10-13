@@ -102,12 +102,14 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
             self.mean_layer = mx.gluon.nn.HybridSequential()
             self.mean_layer.add(
                 mx.gluon.nn.Dense(
-                    units=self.prediction_length * dims[-1],
+                    units=self.prediction_length * n_features,
+                    weight_initializer=mx.init.Constant(self.weight),
+                    bias_initializer=mx.init.Constant(self.bias),
                 )
             )
             self.mean_layer.add(
                 mx.gluon.nn.HybridLambda(
-                    lambda F, o: F.reshape(o, (-1, prediction_length, dims[-1]))
+                    lambda F, o: F.reshape(o, (-1, prediction_length, n_features))
                 )
             )
             """

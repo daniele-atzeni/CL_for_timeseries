@@ -5,6 +5,7 @@ import numpy as np
 import math
 
 from gluonts.dataset import Dataset
+from gluonts.dataset.common import ListDataset
 
 
 def generate_timeseries(growing):
@@ -109,33 +110,37 @@ def create_forecasting_dataset_old(
 """
 
 
-def create_forecasting_dataset(
-    ts: Tensor, ts_len: int, len_to_pred: int, n_samples: int
-) -> TensorDataset:
+def create_forecasting_tensors(
+    ts: Tensor | np.ndarray, context_length: int, prediction_length: int, n_samples: int
+) -> tuple[Tensor, Tensor, Tensor]:
     # ts, mus and vars are assumed to be of the same shape (ts_length, n_features)
-    print(
-        f"Creating the dataset with {n_samples} samples of shape {ts_len} as input and {len_to_pred} as output"
-    )
-    print(f"Original ts shape: {ts.shape}")
+    ts = torch.from_numpy(ts)
+
     starting_indices = np.random.randint(  # the biggest index we can start with is ts_length - ts_piece_length - len_to_pred
-        0, ts.shape[0] - ts_len - len_to_pred, (n_samples,)
+        0, ts.shape[0] - context_length - prediction_length, (n_samples,)
     )
-    ts_indices = [torch.arange(start, start + ts_len) for start in starting_indices]
-    print(f"Generated {len(ts_indices)} indices")
+    ts_indices = [
+        torch.arange(start, start + context_length) for start in starting_indices
+    ]
     ts_x = [ts[ts_ind, :] for ts_ind in ts_indices]
-    print(f"Initialized input with {len(ts_x)} elements of shape {ts_x[0].shape}")
     ts_y = [
-        ts[start + ts_len : start + ts_len + len_to_pred, :]
+        ts[start + context_length : start + context_length + prediction_length, :]
         for start in starting_indices
     ]
-    print(f"Initialized output with {len(ts_y)} elements of shape {ts_y[0].shape}")
 
-    indices = torch.stack(ts_indices)
-    xs = torch.stack(ts_x)
-    ys = torch.stack(ts_y)
+    indices = torch.stack([Tensor(el) for el in ts_indices])
+    xs = torch.stack(ts_x)  # type: ignore we are sure ts_x is a list of Tensors
+    ys = torch.stack(ts_y)  # type: ignore we are sure ts_y is a list of Tensors
 
-    print(f"Stacked tensors")
+    return indices, xs, ys
 
+
+def create_forecasting_dataset(
+    ts: Tensor, context_length: int, prediction_length: int, n_samples: int
+) -> TensorDataset:
+    indices, xs, ys = create_forecasting_tensors(
+        ts, context_length, prediction_length, n_samples
+    )
     return TensorDataset(indices, xs, ys)
 
 
@@ -155,3 +160,18 @@ def get_index_from_Period(start, start_forecast) -> int:
     # start and start_forecast are two tensor of shapes (batch) of pd.Periods
     # we want to get a tensor of starting indices so that we are able to retrieve the correct mu from the normalizer
     return (start_forecast - start).n
+
+
+def initialize_gluonts_dataset(
+    ts: list[np.ndarray],
+    means: list[np.ndarray],
+    freq: str,
+    starts: list,
+):
+    return ListDataset(
+        [  # feat_dynamic_real must be (n_features, ts_length)
+            {"target": ts_i, "feat_dynamic_real": m.T, "start": start}
+            for ts_i, m, start in zip(ts, means, starts)
+        ],
+        freq=freq,
+    )
