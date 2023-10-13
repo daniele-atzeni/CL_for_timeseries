@@ -118,9 +118,9 @@ class GASNormalizer(nn.Module):
             # remember means and vars contain 2D tensors
             squeezed_means = [m.squeeze(1) for m in self.means]
             squeezed_vars = [v.squeeze(1) for v in self.vars]
-            ts_len = ts[0].shape[0]
             normalized_ts = []
             for ts_i, mean_i, var_i in zip(ts, squeezed_means, squeezed_vars):
+                ts_len = ts_i.shape[0]
                 normalized_ts.append(
                     (ts_i - mean_i[:ts_len]) / (np.sqrt(var_i[:ts_len]) + self.eps)
                 )

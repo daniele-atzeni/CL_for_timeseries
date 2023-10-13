@@ -4,7 +4,7 @@ from gluonts.evaluation import make_evaluation_predictions, Evaluator
 
 import mxnet as mx
 
-from my_simple_feedforward._estimator import SimpleFeedForwardEstimator
+from my_transformer._estimator import TransformerEstimator
 from normalizer import GASSimpleGaussian
 from utils import initialize_gluonts_dataset, create_forecasting_tensors
 
@@ -15,7 +15,7 @@ import json
 
 # GET THE DATASET
 print("Getting the dataset...")
-DATASET_NAME = "traffic"
+DATASET_NAME = "car_parts_without_missing"
 dataset = get_dataset(DATASET_NAME)
 print("Done.")
 
@@ -130,13 +130,13 @@ for param in mean_layer.collect_params().values():
 
 # INITIALIZE THE ESTIMATOR
 num_hidden_dimensions = [128, 17]
-estimator = SimpleFeedForwardEstimator(
+estimator = TransformerEstimator(
     mean_layer,
-    num_hidden_dimensions=num_hidden_dimensions,
-    prediction_length=prediction_length,
+    freq=freq,
     context_length=context_length,
-    trainer=Trainer(epochs=5, learning_rate=1e-3, num_batches_per_epoch=100),
-)
+    prediction_length=prediction_length,
+    trainer=Trainer(ctx="cpu", epochs=5, learning_rate=1e-3, num_batches_per_epoch=100),
+)  # trainer=Trainer(epochs=1)
 
 # TRAIN
 predictor = estimator.train(train_dataset)
