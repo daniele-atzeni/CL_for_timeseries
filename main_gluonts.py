@@ -5,7 +5,7 @@ from gluonts.evaluation import make_evaluation_predictions, Evaluator
 import mxnet as mx
 
 from my_simple_feedforward._estimator import SimpleFeedForwardEstimator
-from normalizer import GASSimpleGaussian
+from normalizer import GASSimpleGaussian, GASComplexGaussian
 from utils import initialize_gluonts_dataset, create_forecasting_tensors
 
 import numpy as np
@@ -15,7 +15,7 @@ import json
 
 # GET THE DATASET
 print("Getting the dataset...")
-DATASET_NAME = "traffic"
+DATASET_NAME = "car_parts_without_missing"
 dataset = get_dataset(DATASET_NAME)
 print("Done.")
 
@@ -49,7 +49,8 @@ test_starts = [el["start"] for el in dataset.test]
 # normalizer is supposed to work on the complete GluonTS dataset or on a list of tensors
 print("Initializing the normalizer...")
 eta_mean, eta_var = 0.2, 0.2
-normalizer = GASSimpleGaussian(eta_mean, eta_var)
+# normalizer = GASSimpleGaussian(eta_mean, eta_var)
+normalizer = GASComplexGaussian()
 # we must warm up the normalizer with the complete dataset (even if in this case
 # there is no need for computing static parameters)
 print("Warming up the normalizer...")
@@ -80,6 +81,7 @@ print("Done.")
 # because we must pass linear layer parameters to the Estimator __init__
 
 # SPLIT THE DATASET IN ORDER TO TRAIN THE MEAN LAYER
+print("Creating dataset for the mean linear layer...")
 N_TRAINING_SAMPLES_PER_TS = 100
 N_TEST_SAMPLES_PER_TS = 100
 train_mean_list = []
@@ -99,8 +101,10 @@ train_means_xs = np.concatenate([el[0].numpy() for el in train_mean_list]).squee
 train_means_ys = np.concatenate([el[1].numpy() for el in train_mean_list]).squeeze()
 test_means_xs = np.concatenate([el[0].numpy() for el in test_mean_list]).squeeze()
 test_means_ys = np.concatenate([el[1].numpy() for el in test_mean_list]).squeeze()
+print("Done.")
 
 # INITIALIZE AND FIT THE REGRESSOR
+print("Fitting the mean linear layer...")
 regr = linear_model.LinearRegression()
 regr.fit(train_means_xs, train_means_ys)
 print(f"Score of the mean linear layer: {regr.score(test_means_xs, test_means_ys)}")
@@ -129,6 +133,7 @@ for param in mean_layer.collect_params().values():
     param.grad_req = "null"
 
 # INITIALIZE THE ESTIMATOR
+print("Initializing the estimator...")
 num_hidden_dimensions = [128, 17]
 estimator = SimpleFeedForwardEstimator(
     mean_layer,
@@ -137,6 +142,7 @@ estimator = SimpleFeedForwardEstimator(
     context_length=context_length,
     trainer=Trainer(epochs=5, learning_rate=1e-3, num_batches_per_epoch=100),
 )
+print("Done.")
 
 # TRAIN
 predictor = estimator.train(train_dataset)

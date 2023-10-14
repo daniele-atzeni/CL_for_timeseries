@@ -49,10 +49,39 @@ class GASNormalizer(nn.Module):
     def compute_static_parameters(self, ts: list[np.ndarray | Tensor]) -> None:
         raise NotImplementedError()
 
-    def compute_single_ts_means_and_vars(
-        self, ts: np.ndarray | Tensor
-    ) -> tuple[Tensor, Tensor]:
+    def update_mean_and_var(
+        self, ts_i: float | Tensor, mean: float | Tensor, var: float | Tensor
+    ) -> tuple[float | Tensor, float | Tensor]:
         raise NotImplementedError()
+
+    def compute_single_ts_means_and_vars(
+        self, ts: Tensor | np.ndarray
+    ) -> tuple[Tensor | np.ndarray, Tensor | np.ndarray]:
+        # ts is the complete time series (shape = (total_length, n_features))
+        # we want to compute mus and vars of the same shape
+        # intialize the results
+        is_numpy = isinstance(ts, np.ndarray)
+        if is_numpy:
+            ts = torch.from_numpy(ts)
+
+        means = torch.empty_like(ts)
+        vars = torch.empty_like(ts)
+        # intialize first mean and var
+        mean = torch.mean(ts, dim=0)
+        var = torch.var(ts, dim=0)
+        means[0] = mean
+        vars[0] = var
+        # compute mus and vars
+        for i, ts_i in enumerate(ts):
+            mean, var = self.update_mean_and_var(ts_i, mean, var)
+            means[i] = mean
+            vars[i] = var
+
+        if is_numpy:
+            means = means.numpy()
+            vars = vars.numpy()
+
+        return means, vars
 
     def compute_means_and_vars(self, ts: list[np.ndarray | Tensor]) -> None:
         """
@@ -190,31 +219,112 @@ class GASSimpleGaussian(GASNormalizer):
         var = var * (1 - self.eta_var) + self.eta_var * (ts_i - mean) ** 2
         return mean, var
 
-    def compute_single_ts_means_and_vars(
-        self, ts: Tensor | np.ndarray
-    ) -> tuple[Tensor | np.ndarray, Tensor | np.ndarray]:
-        # ts is the complete time series (shape = (total_length, n_features))
-        # we want to compute mus and vars of the same shape
-        # intialize the results
-        is_numpy = isinstance(ts, np.ndarray)
-        if is_numpy:
-            ts = torch.from_numpy(ts)
 
-        means = torch.empty_like(ts)
-        vars = torch.empty_like(ts)
-        # intialize first mean and var
-        mean = torch.mean(ts, dim=0)
-        var = torch.var(ts, dim=0)
-        means[0] = mean
-        vars[0] = var
-        # compute mus and vars
-        for i, ts_i in enumerate(ts):
-            mean, var = self.update_mean_and_var(ts_i, mean, var)
-            means[i] = mean
-            vars[i] = var
+from scipy.optimize import minimize
 
-        if is_numpy:
-            means = means.numpy()
-            vars = vars.numpy()
 
-        return means, vars
+class GASComplexGaussian(GASNormalizer):
+    def __init__(
+        self,
+        initial_guesses: np.ndarray = np.array([0.001, 0.001, 0, 1]),  # type: ignore
+        regularization: str = "full",
+        eps: float = 1e-9,
+    ) -> None:
+        super(GASComplexGaussian, self).__init__(eps)
+        # self.alpha_mu, self.alpha_sigma, self.mean_0, self.var_0 = initial_guesses
+        self.initial_guesses = initial_guesses
+        self.regularization = regularization
+
+        self.alpha_mu, self.alpha_sigma, self.mu_0, self.sigma2_0 = initial_guesses
+
+    def update_mean_and_var(
+        self,
+        ts_i: float | Tensor | np.ndarray,
+        mean: float | Tensor | np.ndarray,
+        var: float | Tensor | np.ndarray,
+        alpha_mean: float | None = None,
+        alpha_sigma: float | None = None,
+    ):
+        if alpha_mean is None:
+            alpha_mean = self.alpha_mean
+        if alpha_sigma is None:
+            alpha_sigma = self.alpha_sigma
+
+        assert (
+            alpha_mean is not None and alpha_sigma is not None
+        ), "alpha_mean and alpha_sigma should be set by the initializer"
+
+        if self.regularization == "full":
+            mu_updated = mean + alpha_mean * (ts_i - mean)
+            sigma2_updated = var + alpha_sigma * ((ts_i - mean) ** 2 - var)
+        elif self.regularization == "root":
+            mu_updated = alpha_mean * (ts_i - mean) / (np.sqrt(var) + self.eps) + mean
+            sigma2_updated = (
+                alpha_sigma
+                * (
+                    -np.sqrt(2) / 2
+                    + np.sqrt(2) * (ts_i - mean) ** 2 / (2 * var + self.eps)
+                )
+                + var
+            )
+        else:
+            raise ValueError("Error: regularization must be Full or Root")
+        return mu_updated, sigma2_updated
+
+    def neg_log_likelihood_Gaussian(
+        self,
+        y,
+        mean_0,
+        var_0,
+        alpha_mean,
+        alpha_sigma,
+    ):
+        T = len(y)
+        mu_list, sigma2_list = np.zeros(T), np.zeros(T)
+        log_likelihood_list = np.zeros(T)
+        y = np.append(y, y[T - 1])
+
+        for t in range(0, T):
+            if t == 0:
+                # At the first step, we update starting from the inizialization parameters
+                mu_list[t], sigma2_list[t] = self.update_mean_and_var(
+                    y[t], mean_0, var_0, alpha_mean, alpha_sigma
+                )
+
+            else:
+                mu_list[t], sigma2_list[t] = self.update_mean_and_var(
+                    y[t],
+                    mu_list[t - 1],
+                    sigma2_list[t - 1],
+                    alpha_mean,
+                    alpha_sigma,
+                )
+
+            log_likelihood_list[t] = -0.5 * np.log(
+                2 * np.pi * sigma2_list[t] + self.eps
+            ) - 0.5 * (y[t + 1] - mu_list[t]) ** 2 / (sigma2_list[t] + self.eps)
+
+        neg_log_lokelihood = -np.sum(log_likelihood_list)
+        return neg_log_lokelihood / T
+
+    def compute_static_parameters(self, ts: list[np.ndarray | Tensor]) -> None:
+        bounds = ((0, 1), (0, 1), (None, None), (0.00001, 1))
+
+        def minimization_funct(ts, alpha_mean, alpha_sigma, mean_0, sigma2_0):
+            return self.neg_log_likelihood_Gaussian(
+                ts, alpha_mean, alpha_sigma, mean_0, sigma2_0
+            )
+
+        optimal = minimize(
+            lambda params: minimization_funct(ts, *params),
+            x0=self.initial_guesses,
+            bounds=bounds,
+        )
+
+        self.alpha_mean, self.alpha_sigma, self.mean_0, self.sigma2_0 = optimal.x
+        print(
+            "Optimal parameters:  alpha_mean = {},  alpha_sigma = {}, mean_0 = {}, sigma2_0 = {}".format(
+                self.alpha_mean, self.alpha_sigma, self.mean_0, self.sigma2_0
+            )
+        )
+        return
