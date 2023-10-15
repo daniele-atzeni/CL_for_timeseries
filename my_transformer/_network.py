@@ -382,6 +382,25 @@ class TransformerPredictionNetwork(TransformerNetwork):
         ).expand_dims(axis=1)
         repeated_scale = scale.repeat(repeats=self.num_parallel_samples, axis=0)
 
+        """My code here"""
+        # we must include the prediction of the linear layer for the means
+        # Note that for Transformers, they change the instance_splitter to
+        # include windows with length history_length, that is bigger than the
+        # context length. So, we must take only the last context_length values
+        # of past_feat_dynamic_real
+        pred_means = self.mean_layer(
+            past_feat_dynamic_real.slice_axis(
+                axis=1,
+                begin=-self.context_length,
+                end=None,
+            )
+        )
+        # doing the same processing of other tensors...
+        repeated_pred_means = pred_means.repeat(
+            repeats=self.num_parallel_samples, axis=0
+        )
+        """ end """
+
         future_samples = []
 
         # for each future time-units we draw new samples for this time-unit and
@@ -419,19 +438,14 @@ class TransformerPredictionNetwork(TransformerNetwork):
             distr_args = self.proj_dist_args(dec_output)
 
             """My code here"""
-            # we must include the prediction of the linear layer for the means
-            # Note that for Transformers, they change the instance_splitter to
-            # include windows with length history_length, that is bigger than the
-            # context length. So, we must take only the last context_length values
-            # of past_feat_dynamic_real
-            pred_means = self.mean_layer(
-                mx.symbol.slice_axis(
-                    past_feat_dynamic_real, axis=1, begin=-self.context_length, end=None
-                )
-            )
             # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
             new_distr_args = tuple(
-                [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
+                [
+                    el
+                    if i != 0
+                    else el + repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
+                    for i, el in enumerate(distr_args)
+                ]
             )
             # I hope that in distr_args[0] there is the mean
             """ end """
