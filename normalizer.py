@@ -2,6 +2,11 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 import numpy as np
+from scipy.optimize import minimize
+
+TsElement = float | np.ndarray | Tensor
+Ts = np.ndarray | Tensor
+TsDataset = list[Ts]
 
 
 class GASNormalizer(nn.Module):
@@ -22,10 +27,17 @@ class GASNormalizer(nn.Module):
 
     """
 
-    def __init__(self, eps: float = 1e-9) -> None:
+    def __init__(
+        self,
+        eps: float = 1e-9,
+        mean_0: TsElement | None = None,
+        var_0: TsElement | None = None,
+    ) -> None:
         super(GASNormalizer, self).__init__()
         self.means = []
         self.vars = []
+        self.mean_0 = mean_0
+        self.var_0 = var_0
         self.eps = eps
 
     def has_means_and_vars(self) -> bool:
@@ -39,24 +51,25 @@ class GASNormalizer(nn.Module):
             )
         return len(self.means) > 0 and len(self.vars) > 0
 
-    def get_means_and_vars(self) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def get_means_and_vars(self) -> tuple[TsDataset, TsDataset]:
         if not self.has_means_and_vars():
             raise ValueError(
                 "You must call the warm_up method before using the normalizer."
             )
         return self.means, self.vars
 
-    def compute_static_parameters(self, ts: list[np.ndarray | Tensor]) -> None:
+    def compute_static_parameters(self, ts: TsDataset) -> None:
         raise NotImplementedError()
 
-    def update_mean_and_var(
-        self, ts_i: float | Tensor, mean: float | Tensor, var: float | Tensor
-    ) -> tuple[float | Tensor, float | Tensor]:
+    def update_mean_and_var(  # this wants only tensors
+        self,
+        ts_i: Tensor,
+        mean: Tensor,
+        var: Tensor,
+    ) -> tuple[Tensor, Tensor]:
         raise NotImplementedError()
 
-    def compute_single_ts_means_and_vars(
-        self, ts: Tensor | np.ndarray
-    ) -> tuple[Tensor | np.ndarray, Tensor | np.ndarray]:
+    def compute_single_ts_means_and_vars(self, ts: Ts) -> tuple[Ts, Ts]:
         # ts is the complete time series (shape = (total_length, n_features))
         # we want to compute mus and vars of the same shape
         # intialize the results
@@ -67,10 +80,8 @@ class GASNormalizer(nn.Module):
         means = torch.empty_like(ts)
         vars = torch.empty_like(ts)
         # intialize first mean and var
-        mean = torch.mean(ts, dim=0)
-        var = torch.var(ts, dim=0)
-        means[0] = mean
-        vars[0] = var
+        mean = torch.tensor(self.mean_0) if self.mean_0 else torch.mean(ts, dim=0)
+        var = torch.tensor(self.var_0) if self.var_0 else torch.var(ts, dim=0)
         # compute mus and vars
         for i, ts_i in enumerate(ts):
             mean, var = self.update_mean_and_var(ts_i, mean, var)
@@ -83,7 +94,7 @@ class GASNormalizer(nn.Module):
 
         return means, vars
 
-    def compute_means_and_vars(self, ts: list[np.ndarray | Tensor]) -> None:
+    def compute_means_and_vars(self, ts: TsDataset) -> None:
         """
         Compute means and variances of the complete dataset. Remember that
         dataset is a list of time series, so ts is a list of array/tensors. Note also that
@@ -104,8 +115,8 @@ class GASNormalizer(nn.Module):
 
     def warm_up(
         self,
-        train_ts: list[np.ndarray | Tensor],
-        complete_ts: list[np.ndarray | Tensor],
+        train_ts: TsDataset,
+        complete_ts: TsDataset,
     ) -> None:
         """
         This method compute the ideal static parameters of the normalizer given
@@ -123,14 +134,14 @@ class GASNormalizer(nn.Module):
 
     def normalize(
         self,
-        ts: Tensor | list[np.ndarray],
+        ts: Tensor | TsDataset,
         means: Tensor | None = None,
         vars: Tensor | None = None,
     ) -> list[np.ndarray] | Tensor:
         """
         This method is suppose to implement normalization equation. So it must be called
-        for normalize the whole time series in a GluonTS framework (as a list of numpy array),
-        or in the forward pass of the PyTorch training loop. In the first case,
+        for in the forward pass of the PyTorch training loop, or normalize the whole
+        time series in a GluonTS framework (as a list of numpy array). In the second case,
         we do not expect means and vars because we are using the saved ones in the
         warm up phase
         """
@@ -220,9 +231,6 @@ class GASSimpleGaussian(GASNormalizer):
         return mean, var
 
 
-from scipy.optimize import minimize
-
-
 class GASComplexGaussian(GASNormalizer):
     def __init__(
         self,
@@ -235,7 +243,7 @@ class GASComplexGaussian(GASNormalizer):
         self.initial_guesses = initial_guesses
         self.regularization = regularization
 
-        self.alpha_mu, self.alpha_sigma, self.mu_0, self.sigma2_0 = initial_guesses
+        self.alpha_mean, self.alpha_sigma, self.mean_0, self.sigma2_0 = initial_guesses
 
     def update_mean_and_var(
         self,
@@ -255,11 +263,11 @@ class GASComplexGaussian(GASNormalizer):
         ), "alpha_mean and alpha_sigma should be set by the initializer"
 
         if self.regularization == "full":
-            mu_updated = mean + alpha_mean * (ts_i - mean)
-            sigma2_updated = var + alpha_sigma * ((ts_i - mean) ** 2 - var)
+            mean_updated = mean + alpha_mean * (ts_i - mean)
+            var_updated = var + alpha_sigma * ((ts_i - mean) ** 2 - var)
         elif self.regularization == "root":
-            mu_updated = alpha_mean * (ts_i - mean) / (np.sqrt(var) + self.eps) + mean
-            sigma2_updated = (
+            mean_updated = alpha_mean * (ts_i - mean) / (np.sqrt(var) + self.eps) + mean
+            var_updated = (
                 alpha_sigma
                 * (
                     -np.sqrt(2) / 2
@@ -269,43 +277,51 @@ class GASComplexGaussian(GASNormalizer):
             )
         else:
             raise ValueError("Error: regularization must be Full or Root")
-        return mu_updated, sigma2_updated
+        return mean_updated, var_updated
+
+    def neg_log_likelihood_Gaussian_single_ts(
+        self,
+        ts: np.ndarray | Tensor,
+        mean_0: float | Tensor | np.ndarray,
+        var_0: float | Tensor | np.ndarray,
+        alpha_mean: float,
+        alpha_sigma: float,
+    ) -> float:
+        T = ts.shape[0]
+        mean_ts, var_ts = np.zeros(T), np.zeros(T)
+        log_likelihood_ts = np.zeros(T)
+        """y = np.append(y, y[T - 1])"""
+
+        mean, var = mean_0, var_0
+        for i, ts_i in enumerate(ts):
+            mean, var = self.update_mean_and_var(
+                ts_i, mean, var, alpha_mean, alpha_sigma
+            )
+            mean_ts[i] = mean
+            var_ts[i] = var
+            log_likelihood_ts[i] = -0.5 * np.log(2 * np.pi * var + self.eps) - 0.5 * (
+                ts_i - mean
+            ) ** 2 / (var + self.eps)
+
+        neg_log_lokelihood = -np.sum(log_likelihood_ts)
+        return float(neg_log_lokelihood / T)
 
     def neg_log_likelihood_Gaussian(
         self,
-        y,
-        mean_0,
-        var_0,
-        alpha_mean,
-        alpha_sigma,
-    ):
-        T = len(y)
-        mu_list, sigma2_list = np.zeros(T), np.zeros(T)
-        log_likelihood_list = np.zeros(T)
-        y = np.append(y, y[T - 1])
-
-        for t in range(0, T):
-            if t == 0:
-                # At the first step, we update starting from the inizialization parameters
-                mu_list[t], sigma2_list[t] = self.update_mean_and_var(
-                    y[t], mean_0, var_0, alpha_mean, alpha_sigma
+        list_ts: list[np.ndarray | Tensor],
+        mean_0: float,
+        var_0: float,
+        alpha_mean: float,
+        alpha_sigma: float,
+    ) -> float:
+        return np.sum(
+            [
+                self.neg_log_likelihood_Gaussian_single_ts(
+                    ts, mean_0, var_0, alpha_mean, alpha_sigma
                 )
-
-            else:
-                mu_list[t], sigma2_list[t] = self.update_mean_and_var(
-                    y[t],
-                    mu_list[t - 1],
-                    sigma2_list[t - 1],
-                    alpha_mean,
-                    alpha_sigma,
-                )
-
-            log_likelihood_list[t] = -0.5 * np.log(
-                2 * np.pi * sigma2_list[t] + self.eps
-            ) - 0.5 * (y[t + 1] - mu_list[t]) ** 2 / (sigma2_list[t] + self.eps)
-
-        neg_log_lokelihood = -np.sum(log_likelihood_list)
-        return neg_log_lokelihood / T
+                for ts in list_ts
+            ]
+        )
 
     def compute_static_parameters(self, ts: list[np.ndarray | Tensor]) -> None:
         bounds = ((0, 1), (0, 1), (None, None), (0.00001, 1))

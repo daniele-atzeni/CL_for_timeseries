@@ -175,3 +175,42 @@ def initialize_gluonts_dataset(
         ],
         freq=freq,
     )
+
+
+def create_dataset_for_mean_layer(
+    ts: list[np.ndarray | Tensor],
+    mean_ts: list[np.ndarray | Tensor],
+    context_el: int,
+    prediction_length: int,
+    n_el_per_ts: int,
+) -> tuple[np.ndarray | Tensor, np.ndarray | Tensor]:
+    """
+    This function takes as input the original time-series dataset (as a list of time-series)
+    and the dataset of the means computed by the GAS normalizer.
+    It returns a tuple of two arrays (either numpy or torch.Tensor), containing xs and ys for the mean layer.
+    The xs are windows of the means time series of shape (n_el, context_el).
+    The ys are windows of the original time series of shape (n_el, prediction_length).
+    n_el is len(ts) * n_el_per_ts
+    """
+    xs_list, ys_list = [], []
+    for ts_i, mean_i in zip(ts, mean_ts):
+        # we must compute the starting indices for each window
+        ts_len = ts_i.shape[0]
+        max_start = ts_len - context_el - prediction_length
+        indices = np.random.randint(0, max_start, n_el_per_ts)
+        for i in indices:
+            xs_list.append(mean_i[i : i + context_el])
+            ys_list.append(ts_i[i + context_el : i + context_el + prediction_length])
+
+    if isinstance(ts[0], np.ndarray):
+        xs = np.array(xs_list)
+        ys = np.array(ys_list)
+    elif isinstance(ts[0], Tensor):
+        xs = torch.stack(xs_list)
+        ys = torch.stack(ys_list)
+    else:
+        raise TypeError(
+            "A single time-series must be a list of np.ndarray or torch.Tensor"
+        )
+
+    return xs, ys
