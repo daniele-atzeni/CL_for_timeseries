@@ -558,8 +558,8 @@ class GASComplexGaussian:
     def warm_up(
         self,
         dataset: list[np.ndarray],
-        initial_guesses: np.ndarray = np.array([0.001, 0.001, 0, 1]),
-        bounds: tuple = ((None, None), (0.00001, 1), (0, 1), (0, 1)),
+        initial_guesses: np.ndarray = np.array([0.001, 0.001, 0, 1], dtype="float"),
+        bounds: tuple = ((None, None), (0.00001, 1), (0, 0.999), (0, 0.999)),
     ) -> list[dict]:
         """
         This method computes the ideal initial guesses and static parameters for each of the input time series in the list.
@@ -576,7 +576,7 @@ class GASComplexGaussian:
         ), "bounds must be a tuple of 2 * n_features + 2 elements (pair of values). First n_features elements are bounds for means of each feature, second n_features elements are bounds for vars of each feature, last two elements are bounds for alpha_mean and alpha_var"
 
         initial_params_list = []
-        for i, ts in tqdm(enumerate(dataset)):
+        for ts in tqdm(dataset, total=len(dataset), unit="ts"):
             # quick correction of shapes. We always assume (length, n_features)
             if len(ts.shape) == 1:
                 ts = np.expand_dims(ts, axis=1)
@@ -599,7 +599,7 @@ class GASComplexGaussian:
                 x0=initial_guesses,
                 bounds=bounds,
             )
-            alpha_mean, alpha_sigma, mean_0, var_0 = self.unpack_minimization_input(
+            mean_0, var_0, alpha_mean, alpha_sigma = self.unpack_minimization_input(
                 optimal.x, n_features
             )
 

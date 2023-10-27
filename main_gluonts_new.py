@@ -8,9 +8,11 @@ import mxnet as mx
 from my_simple_feedforward._estimator import SimpleFeedForwardEstimator
 from normalizer import GASComplexGaussian
 
+import os
+import pickle
+import json
 
 from sklearn import linear_model
-import json
 import numpy as np
 
 
@@ -72,8 +74,39 @@ def prepare_dataset_for_mean_layer(
 
 
 def main(
-    dataset_name: str, n_training_samples_per_ts: int, n_test_sample_per_ts: int
+    dataset_name: str,
+    n_training_samples_per_ts: int,
+    n_test_sample_per_ts: int,
+    root_folder: str,
 ) -> None:
+    # INITIALIZE VARIOUS FOLDERS
+    if not os.path.exists(root_folder):
+        os.mkdir(root_folder)
+    dataset_folder = os.path.join(root_folder, dataset_name)
+    if not os.path.exists(dataset_folder):
+        os.mkdir(dataset_folder)
+    warm_up_results_folder = os.path.join(dataset_folder, "warm_up_results")
+    if not os.path.exists(warm_up_results_folder):
+        os.mkdir(warm_up_results_folder)
+    norm_parameters_folder = os.path.join(warm_up_results_folder, "normalizer_params")
+    if not os.path.exists(norm_parameters_folder):
+        os.mkdir(norm_parameters_folder)
+    norm_ts_folder = os.path.join(warm_up_results_folder, "normalized_ts")
+    if not os.path.exists(norm_ts_folder):
+        os.mkdir(norm_ts_folder)
+    means_folder = os.path.join(warm_up_results_folder, "means")
+    if not os.path.exists(means_folder):
+        os.mkdir(means_folder)
+    vars_folder = os.path.join(warm_up_results_folder, "vars")
+    if not os.path.exists(vars_folder):
+        os.mkdir(vars_folder)
+    mean_layer_preds_folder = os.path.join(dataset_folder, "mean_layer_predictions")
+    if not os.path.exists(mean_layer_preds_folder):
+        os.mkdir(mean_layer_preds_folder)
+    estimator_preds_folder = os.path.join(dataset_folder, "estimator_predictions")
+    if not os.path.exists(estimator_preds_folder):
+        os.mkdir(estimator_preds_folder)
+
     # GET THE DATASET
     print("Getting the dataset...")
     dataset = get_dataset(dataset_name)
@@ -94,8 +127,11 @@ def main(
     assert dataset.metadata.freq is not None, "Frequency length cannot be None"
     freq = dataset.metadata.freq
 
-    # n_features = len(list(dataset.train)) NOOOOOOOO it'a always 1
-    n_features = 1
+    n_features = (
+        1
+        if len(list(dataset.train)[0]["target"].shape) == 1
+        else list(dataset.train)[0]["target"].shape[1]
+    )
 
     # We must produce a new dataset, with normalized time series and means as new features
     # we are sure that downloaded GluonTS datasets have no other features
@@ -106,7 +142,7 @@ def main(
     test_dataset = [el["target"] for el in dataset.test]
     test_starts = [el["start"] for el in dataset.test]
 
-    # INITIALIZE THE NORMALIZER AND NORMALIZE THE DATASET
+    # INITIALIZE AND WARM UP THE NORMALIZER
     normalizer = GASComplexGaussian()
     # normalizer is able to compute
     # - ideal initial guesses and static parameters of the normalizer for each time series in the dataset
@@ -117,7 +153,22 @@ def main(
     print("Warming up test dataset...")
     test_normalizer_params = normalizer.warm_up(test_dataset)
     print("Done.")
-    # normalize the dataset
+    # save the normalizer parameters with pickle
+    print("Saving normalizer parameters...")
+    for i, el in enumerate(train_normalizer_params):
+        with open(
+            os.path.join(norm_parameters_folder, f"train_{i}_normalizer_params.pkl"),
+            "wb",
+        ) as f:
+            pickle.dump(train_normalizer_params, f)
+    for i, el in enumerate(norm_parameters_folder):
+        with open(
+            os.path.join(warm_up_results_folder, f"test_{i}_normalizer_params.pkl"),
+            "wb",
+        ) as f:
+            pickle.dump(test_normalizer_params, f)
+
+    # NORMALIZE THE DATASET
     print("Normalizing train dataset...")
     norm_train_dataset, train_means, train_vars = normalizer.normalize(
         train_dataset, train_normalizer_params
@@ -127,6 +178,15 @@ def main(
         test_dataset, test_normalizer_params
     )
     print("Done.")
+    # save normalized_test_dataset, means and vars. They are list of np.arrays
+    # we save only test ones because they are a superset of train ones
+    print("Saving normalized test dataset, means and vars...")
+    for i, el in enumerate(norm_test_dataset):
+        np.save(os.path.join(norm_ts_folder, f"test_ts_{i}_normalized.npy"), el)
+    for i, el in enumerate(test_means):
+        np.save(os.path.join(means_folder, f"test_ts_{i}_means.npy"), el)
+    for i, el in enumerate(test_vars):
+        np.save(os.path.join(vars_folder, f"test_ts_{i}_vars.npy"), el)
 
     # LET'S START THE PREPARATION FOR THE MEAN LAYER
     ## CREATE THE DATASET
@@ -158,6 +218,27 @@ def main(
     )
     weight = regr.coef_
     bias = regr.intercept_
+    # save the regressor
+    with open(os.path.join(dataset_folder, "mean_layer_regressor.pkl"), "wb") as f:
+        pickle.dump(regr, f)
+
+    ## COMPUTE LINEAR PREDICTIONS FOR TEST SET AND SAVE THEM
+    print("Computing linear predictions for test set...")
+    mean_predictions = []
+    for i, mean in enumerate(test_means):
+        ts_predictions = np.empty_like(mean)
+        ts_predictions[:context_length] = mean[:context_length]
+        for j in range(context_length, mean.shape[0]):
+            pred = regr.predict(mean[j - context_length : j].reshape(1, -1))
+            ts_predictions[j] = pred[0][0]  # we predict a single value per iteration
+        mean_predictions.append(ts_predictions)
+    # save mean predictions
+    for i, el in enumerate(mean_predictions):
+        np.save(
+            os.path.join(mean_layer_preds_folder, f"test_ts_{i}_mean_layer_preds.npy"),
+            el,
+        )
+    print("Done.")
 
     # NOW WE HAVE TO PREPARE FOR THE ESTIMATOR TRAINING PROCESS
     ## WE MUST FIRST PREPARE THE DATASET
@@ -244,5 +325,6 @@ if __name__ == "__main__":
     DATASET_NAME = "car_parts_without_missing"
     N_TRAINING_SAMPLES_PER_TS = 100
     N_TEST_SAMPLES_PER_TS = 100
+    ROOT_FOLDER = "UNIVARIATE_RESULTS"
 
-    main(DATASET_NAME, N_TRAINING_SAMPLES_PER_TS, N_TEST_SAMPLES_PER_TS)
+    main(DATASET_NAME, N_TRAINING_SAMPLES_PER_TS, N_TEST_SAMPLES_PER_TS, ROOT_FOLDER)
