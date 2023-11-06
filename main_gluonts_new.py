@@ -161,9 +161,9 @@ def main(
             "wb",
         ) as f:
             pickle.dump(train_normalizer_params, f)
-    for i, el in enumerate(norm_parameters_folder):
+    for i, el in enumerate(test_normalizer_params):
         with open(
-            os.path.join(warm_up_results_folder, f"test_{i}_normalizer_params.pkl"),
+            os.path.join(norm_parameters_folder, f"test_{i}_normalizer_params.pkl"),
             "wb",
         ) as f:
             pickle.dump(test_normalizer_params, f)
@@ -322,7 +322,7 @@ def main(
 
 
 if __name__ == "__main__":
-    DATASET_NAME = "car_parts_without_missing"
+    DATASET_NAME = "traffic"
     N_TRAINING_SAMPLES_PER_TS = 100
     N_TEST_SAMPLES_PER_TS = 100
     ROOT_FOLDER = "UNIVARIATE_RESULTS"
