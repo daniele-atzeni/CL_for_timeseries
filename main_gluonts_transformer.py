@@ -6,7 +6,7 @@ import mxnet as mx
 
 from my_transformer._estimator import TransformerEstimator
 from normalizer import GASSimpleGaussian
-from utils import initialize_gluonts_dataset, create_forecasting_tensors
+from utils_old import initialize_gluonts_dataset, create_forecasting_tensors
 
 import numpy as np
 from sklearn import linear_model

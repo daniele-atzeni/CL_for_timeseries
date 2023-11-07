@@ -4,7 +4,7 @@ from normalizer import GASSimpleGaussian
 from models import FFNN
 from denormalizer import SumDenormalizer
 
-from experiment import run_torch_experiment
+from experiment_old import run_torch_experiment
 
 
 if __name__ == "__main__":

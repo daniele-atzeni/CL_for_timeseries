@@ -4,7 +4,7 @@ from normalizer import GASSimpleGaussian
 from models import FFNN
 from denormalizer import ConcatDenormalizer
 
-from experiment import run_experiment
+from experiment_old import run_experiment
 
 
 if __name__ == "__main__":

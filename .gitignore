@@ -170,7 +170,5 @@ DAIN_DATA
 cl_venv
 .vscode
 original_dain
-Adap_norm
-figures*
-*.png
-UNIVARIATE_RESULTS
+UNIVARIATE_TORCH_RESULTS_GAS
+UNIVARIATE_GLUON_RESULTS_GAS
