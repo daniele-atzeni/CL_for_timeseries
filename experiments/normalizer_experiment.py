@@ -1,4 +1,4 @@
-from normalizer import GASComplexGaussian
+from normalizer import GASComplexGaussian, GASTStudent
 
 import os
 import json
@@ -13,6 +13,8 @@ def experiment_normalizer(
     normalizer_parameters: dict,
     train_dataset: list[np.ndarray],
     test_dataset: list[np.ndarray],
+    initial_guesses: np.ndarray,
+    bounds: tuple,
     normalizer_folder: str,
     train_params_folder: str,
     train_normalized_folder: str,
@@ -29,13 +31,15 @@ def experiment_normalizer(
     # it always expects a list of arrays as input
     if normalizer_name == "gas_complex_gaussian":
         normalizer = GASComplexGaussian(**normalizer_parameters)
+    elif normalizer_name == "gas_t_student":
+        normalizer = GASTStudent(**normalizer_parameters)
     else:
         raise ValueError(f"Unknown normalizer class: {normalizer_name}")
 
     print("Warming up train dataset...")
-    train_normalizer_params = normalizer.warm_up(train_dataset)
+    train_normalizer_params = normalizer.warm_up(train_dataset, initial_guesses, bounds)
     print("Warming up test dataset...")
-    test_normalizer_params = normalizer.warm_up(test_dataset)
+    test_normalizer_params = normalizer.warm_up(test_dataset, initial_guesses, bounds)
     print("Done.")
 
     # NORMALIZE THE DATASET
