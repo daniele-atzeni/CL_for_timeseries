@@ -48,12 +48,13 @@ class GASNormalizer:
         """
         This method unpacks the input of the minimization function that we want
         to minimize with scipy.optimize.minimize. This function takes as input a
-        1D np.array. The length of this array depends on the number of (float) static
+        1D np.array. The length of this array depends on the number of static
         parameters and initial values (usually only means and vars). Its length is
-        (n_initial_values * n_features + n_static_parameters). The first n_features
-        elements of the array is the first initial guess, the second n_features
-        elements is the second initial guess and so on. About static parameters,
-        the n_initial_guesses* n_features + 1 is the first one, etc.
+        (n_initial_values * n_features + n_static_parameters * n_features).
+        The first n_features elements of the array is the first initial guess,
+        the second n_features elements is the second initial guess and so on.
+        Indexing of static parameters works in the same way. Remember that we are
+        normalizing time series features independently.
 
         The method returns a dictionary {"param_name": param_value}, where param_name
         is the correct name in order to pass the variable to the update_mean_and_var
@@ -129,8 +130,8 @@ class GASGaussian(GASNormalizer):
         ts_i: np.ndarray,
         mean: np.ndarray,
         var: np.ndarray,
-        eta_mean: float,
-        eta_var: float,
+        eta_mean: np.ndarray,
+        eta_var: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         raise NotImplementedError()
 
@@ -139,8 +140,8 @@ class GASGaussian(GASNormalizer):
         ts: np.ndarray,
         mean_0: np.ndarray,
         var_0: np.ndarray,
-        eta_mean: float,
-        eta_var: float,
+        eta_mean: np.ndarray,
+        eta_var: np.ndarray,
     ) -> float:
         """
         Method to compute negative log likelihood of a single time series.
@@ -167,17 +168,17 @@ class GASGaussian(GASNormalizer):
         """
         This method unpacks the input of the minimization function that we want
         to minimize with the SciPy method. It takes a 1D np.ndarray of shape
-        (2 * n_features + 2, ) containing the initial guesses for:
+        (2 * n_features + 2 * n_features) containing the initial guesses for:
         - means (n_features)
         - vars (n_features)
-        - eta_mean (float)
-        - eta_var (float)
+        - eta_mean (n_features)
+        - eta_var (n_features)
         """
         result = {
             "mean_0": x[:n_features],
             "var_0": x[n_features : 2 * n_features],
-            "eta_mean": x[2 * n_features],
-            "eta_var": x[2 * n_features + 1],
+            "eta_mean": x[2 * n_features : 3 * n_features],
+            "eta_var": x[3 * n_features : 4 * n_features],
         }
         return result
 
@@ -221,8 +222,8 @@ class GASSimpleGaussian(GASGaussian):
         ts_i: np.ndarray,
         mean: np.ndarray,
         var: np.ndarray,
-        eta_mean: float,
-        eta_var: float,
+        eta_mean: np.ndarray,
+        eta_var: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         mean_updated = mean + eta_mean * (ts_i - mean)
         var_updated = var * (1 - eta_var) + eta_var * (ts_i - mean) ** 2
@@ -244,8 +245,8 @@ class GASComplexGaussian(GASGaussian):
         ts_i: np.ndarray,
         mean: np.ndarray,
         var: np.ndarray,
-        alpha_mean: float,
-        alpha_var: float,
+        alpha_mean: np.ndarray,
+        alpha_var: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Method to compute the single element update. Every input array is supposed
@@ -288,9 +289,9 @@ class GASTStudent(GASNormalizer):
         ts_i: np.ndarray,
         mean: np.ndarray,
         var: np.ndarray,
-        eta_mean: float,
-        eta_var: float,
-        nu: float,
+        eta_mean: np.ndarray,
+        eta_var: np.ndarray,
+        nu: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         mean_updated = mean + (
             (self.mean_strength) / (1 - self.mean_strength)
@@ -308,9 +309,9 @@ class GASTStudent(GASNormalizer):
         ts: np.ndarray,
         mean_0: np.ndarray,
         var_0: np.ndarray,
-        eta_mean: float,
-        eta_var: float,
-        nu: float,
+        eta_mean: np.ndarray,
+        eta_var: np.ndarray,
+        nu: np.ndarray,
     ) -> float:
         ts_length = ts.shape[0]
         neg_log_likelihood = 0
@@ -354,9 +355,9 @@ class GASTStudent(GASNormalizer):
         result = {
             "mean_0": x[:n_features],
             "var_0": x[n_features : 2 * n_features],
-            "eta_mean": x[2 * n_features],
-            "eta_var": x[2 * n_features + 1],
-            "nu": x[2 * n_features + 2],
+            "eta_mean": x[2 * n_features : 3 * n_features],
+            "eta_var": x[3 * n_features : 4 * n_features],
+            "nu": x[4 * n_features : 5 * n_features],
         }
         return result
 
