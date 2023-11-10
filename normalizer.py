@@ -14,51 +14,36 @@ class GASNormalizer:
 
     def update_mean_and_var(
         self,
-        ts_i: np.ndarray,
-        mean: np.ndarray,
-        var: np.ndarray,
+        ts_i: np.ndarray | float,
+        mean: np.ndarray | float,
+        var: np.ndarray | float,
         *args,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray | float, np.ndarray | float]:
         """
         Method that computes the timestep update of the mean and variance.
         - ts_i, mean, var are 1D np.array of shape (n_features) and represent
           the current timestep of the time series, the mean and the variance.
         - args are the other static parameters of the normalizer.
+
+        This method must also work for a single feature of a time series (during
+        the minimization of the neg_log_likelihood), so inputs can also be float.
         """
         raise NotImplementedError()
 
     def compute_neg_log_likelihood(
         self,
         ts: np.ndarray,
-        mean_0: np.ndarray,
-        var_0: np.ndarray,
+        mean_0: float,
+        var_0: float,
         *args,
     ) -> float:
         """
-        This methods compute the negative log likelihood of a single time series.
-        - ts is a 2D np.ndarray of shape (ts_length, n_features)
-        - mean_0 and var_0 are 1D np.ndarray of shape (n_features) and are the
-          first values of mean and variance
+        This methods compute the negative log likelihood of a single time series
+        feature. The inputs are:
+        - ts is a 1D np.ndarray of shape (ts_length)
+        - mean_0 and var_0 are float and are the first values of mean and variance
+          time series that GAS outputs.
         - args are the other static parameters of the normalizer.
-        """
-        raise NotImplementedError()
-
-    @staticmethod
-    def unpack_minimization_input(x: np.ndarray, n_features: int) -> dict:
-        """
-        This method unpacks the input of the minimization function that we want
-        to minimize with scipy.optimize.minimize. This function takes as input a
-        1D np.array. The length of this array depends on the number of static
-        parameters and initial values (usually only means and vars). Its length is
-        (n_initial_values * n_features + n_static_parameters * n_features).
-        The first n_features elements of the array is the first initial guess,
-        the second n_features elements is the second initial guess and so on.
-        Indexing of static parameters works in the same way. Remember that we are
-        normalizing time series features independently.
-
-        The method returns a dictionary {"param_name": param_value}, where param_name
-        is the correct name in order to pass the variable to the update_mean_and_var
-        and compute_neg_log_likelihood methods.
         """
         raise NotImplementedError()
 
@@ -67,7 +52,7 @@ class GASNormalizer:
         dataset: list[np.ndarray],
         initial_guesses: np.ndarray,
         bounds: tuple,
-    ) -> list[dict]:
+    ) -> list:
         """
         This method computes the ideal initial guesses and static parameters for
         each of the input time series in the list. Each time series is (len, n_feat).
@@ -82,27 +67,33 @@ class GASNormalizer:
 
         n_features = dataset[0].shape[1]
 
+        # the results will be a list of lists containing the optimal values  of
+        # the parameters as numpy arrays (n_features,)
         initial_params_list = []
         for ts in tqdm(dataset, total=len(dataset), unit="ts"):
+            # we normalize time_series features independently
+            ts_results = []
+            for feat in tqdm(range(n_features), unit="feature"):
+                # we define the function to minimize
+                def func_to_minimize(x):
+                    # we must first unpack the input
+                    return self.compute_neg_log_likelihood(ts[:, feat], *x)
 
-            def func_to_minimize(x):
-                # we must first unpack the input
-                params = self.unpack_minimization_input(x, n_features)
-                return self.compute_neg_log_likelihood(ts, **params)
+                optimal = minimize(
+                    lambda x: func_to_minimize(x),
+                    x0=initial_guesses,
+                    bounds=bounds,
+                )
+                ts_results.append(optimal.x)
+            # now ts_results is a list parameters (float) for each feature of the time series
+            # we want a list of parameters (np.ndarray (n_features,)) for each time series
+            ts_results = np.stack(ts_results, axis=1)
 
-            optimal = minimize(
-                lambda x: func_to_minimize(x),
-                x0=initial_guesses,
-                bounds=bounds,
-            )
-            initial_params_list.append(
-                self.unpack_minimization_input(optimal.x, n_features)
-            )
-
+            initial_params_list.append([el for el in ts_results])
         return initial_params_list
 
     def normalize(
-        self, dataset: list[np.ndarray], normalizer_params: list[dict]
+        self, dataset: list[np.ndarray], normalizer_params: list
     ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
         """
         This method normalizes a dataset (list) of time series. It needs also time
@@ -127,26 +118,26 @@ class GASGaussian(GASNormalizer):
 
     def update_mean_and_var(
         self,
-        ts_i: np.ndarray,
-        mean: np.ndarray,
-        var: np.ndarray,
-        eta_mean: np.ndarray,
-        eta_var: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        ts_i: np.ndarray | float,
+        mean: np.ndarray | float,
+        var: np.ndarray | float,
+        eta_mean: np.ndarray | float,
+        eta_var: np.ndarray | float,
+    ) -> tuple[np.ndarray | float, np.ndarray | float]:
         raise NotImplementedError()
 
     def compute_neg_log_likelihood(
         self,
         ts: np.ndarray,
-        mean_0: np.ndarray,
-        var_0: np.ndarray,
-        eta_mean: np.ndarray,
-        eta_var: np.ndarray,
+        mean_0: float,
+        var_0: float,
+        eta_mean: float,
+        eta_var: float,
     ) -> float:
         """
-        Method to compute negative log likelihood of a single time series.
-        ts is assumed to be a 2D np.ndarray of shape (ts_length, n_features)
-        mean_0 and var_0 are assumed to be 1D np.ndarray of shape (n_features)
+        Method to compute negative log likelihood of a single time series feature.
+        ts is assumed to be a 1D np.ndarray of shape (ts_length)
+        mean_0 and var_0 are assumed to be float, as well as the other params.
         """
 
         ts_length = ts.shape[0]
@@ -163,27 +154,8 @@ class GASGaussian(GASNormalizer):
 
         return neg_log_likelihood / ts_length
 
-    @staticmethod
-    def unpack_minimization_input(x: np.ndarray, n_features: int) -> dict:
-        """
-        This method unpacks the input of the minimization function that we want
-        to minimize with the SciPy method. It takes a 1D np.ndarray of shape
-        (2 * n_features + 2 * n_features) containing the initial guesses for:
-        - means (n_features)
-        - vars (n_features)
-        - eta_mean (n_features)
-        - eta_var (n_features)
-        """
-        result = {
-            "mean_0": x[:n_features],
-            "var_0": x[n_features : 2 * n_features],
-            "eta_mean": x[2 * n_features : 3 * n_features],
-            "eta_var": x[3 * n_features : 4 * n_features],
-        }
-        return result
-
     def normalize(
-        self, dataset: list[np.ndarray], normalizer_params: list[dict]
+        self, dataset: list[np.ndarray], normalizer_params: list
     ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
         """
         This method normalizes a dataset (list) of time series. It needs also time
@@ -196,10 +168,7 @@ class GASGaussian(GASNormalizer):
             ts_means = np.empty_like(ts)
             ts_vars = np.empty_like(ts)
 
-            mean = ts_params["mean_0"]  # (n_features)
-            var = ts_params["var_0"]  # (n_features)
-            eta_mean = ts_params["eta_mean"]  # float
-            eta_var = ts_params["eta_var"]  # float
+            mean, var, eta_mean, eta_var = ts_params
 
             for i, ts_i in enumerate(ts):
                 mean, var = self.update_mean_and_var(ts_i, mean, var, eta_mean, eta_var)
@@ -219,12 +188,12 @@ class GASSimpleGaussian(GASGaussian):
 
     def update_mean_and_var(
         self,
-        ts_i: np.ndarray,
-        mean: np.ndarray,
-        var: np.ndarray,
-        eta_mean: np.ndarray,
-        eta_var: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        ts_i: np.ndarray | float,
+        mean: np.ndarray | float,
+        var: np.ndarray | float,
+        eta_mean: np.ndarray | float,
+        eta_var: np.ndarray | float,
+    ) -> tuple[np.ndarray | float, np.ndarray | float]:
         mean_updated = mean + eta_mean * (ts_i - mean)
         var_updated = var * (1 - eta_var) + eta_var * (ts_i - mean) ** 2
 
@@ -242,16 +211,12 @@ class GASComplexGaussian(GASGaussian):
 
     def update_mean_and_var(
         self,
-        ts_i: np.ndarray,
-        mean: np.ndarray,
-        var: np.ndarray,
-        alpha_mean: np.ndarray,
-        alpha_var: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Method to compute the single element update. Every input array is supposed
-        to be a 1D np.ndarray of shape (n_features)
-        """
+        ts_i: np.ndarray | float,
+        mean: np.ndarray | float,
+        var: np.ndarray | float,
+        alpha_mean: np.ndarray | float,
+        alpha_var: np.ndarray | float,
+    ) -> tuple[np.ndarray | float, np.ndarray | float]:
         if self.regularization == "full":
             mean_updated = mean + alpha_mean * (ts_i - mean)
             var_updated = var + alpha_var * ((ts_i - mean) ** 2 - var)
@@ -286,13 +251,13 @@ class GASTStudent(GASNormalizer):
 
     def update_mean_and_var(
         self,
-        ts_i: np.ndarray,
-        mean: np.ndarray,
-        var: np.ndarray,
-        eta_mean: np.ndarray,
-        eta_var: np.ndarray,
-        nu: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        ts_i: np.ndarray | float,
+        mean: np.ndarray | float,
+        var: np.ndarray | float,
+        eta_mean: np.ndarray | float,
+        eta_var: np.ndarray | float,
+        nu: np.ndarray | float,
+    ) -> tuple[np.ndarray | float, np.ndarray | float]:
         mean_updated = mean + (
             (self.mean_strength) / (1 - self.mean_strength)
         ) * eta_mean * (ts_i - mean) / (1 + (ts_i - mean) ** 2 / (nu * var))
@@ -307,11 +272,11 @@ class GASTStudent(GASNormalizer):
     def compute_neg_log_likelihood(
         self,
         ts: np.ndarray,
-        mean_0: np.ndarray,
-        var_0: np.ndarray,
-        eta_mean: np.ndarray,
-        eta_var: np.ndarray,
-        nu: np.ndarray,
+        mean_0: float,
+        var_0: float,
+        eta_mean: float,
+        eta_var: float,
+        nu: float,
     ) -> float:
         ts_length = ts.shape[0]
         neg_log_likelihood = 0
@@ -340,27 +305,6 @@ class GASTStudent(GASNormalizer):
             neg_log_likelihood = neg_log_likelihood - log_likelihood_i
         return neg_log_likelihood / ts_length
 
-    @staticmethod
-    def unpack_minimization_input(x: np.ndarray, n_features: int) -> dict:
-        """
-        This method unpacks the input of the minimization function that we want
-        to minimize with the SciPy method. It takes a 1D np.ndarray of shape
-        (2 * n_features + 3, ) containing the initial guesses for:
-        - means (n_features)
-        - vars (n_features)
-        - alpha_mean (float)
-        - alpha_var (float)
-        - nu (float)
-        """
-        result = {
-            "mean_0": x[:n_features],
-            "var_0": x[n_features : 2 * n_features],
-            "eta_mean": x[2 * n_features : 3 * n_features],
-            "eta_var": x[3 * n_features : 4 * n_features],
-            "nu": x[4 * n_features : 5 * n_features],
-        }
-        return result
-
     def normalize(
         self, dataset: list[np.ndarray], normalizer_params: list[dict]
     ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
@@ -375,11 +319,7 @@ class GASTStudent(GASNormalizer):
             ts_means = np.empty_like(ts)
             ts_vars = np.empty_like(ts)
 
-            mean = ts_params["mean_0"]  # (n_features)
-            var = ts_params["var_0"]  # (n_features)
-            eta_mean = ts_params["eta_mean"]  # float
-            eta_var = ts_params["eta_var"]  # float
-            nu = ts_params["nu"]  # float
+            mean, var, eta_mean, eta_var, nu = ts_params
 
             for i, ts_i in enumerate(ts):
                 mean, var = self.update_mean_and_var(

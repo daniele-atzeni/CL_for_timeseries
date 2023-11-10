@@ -1,6 +1,6 @@
 import numpy as np
 
-from experiments.gas_experiment import run_gas_experiment
+from run_experiment.gas_experiment import run_gas_experiment
 
 
 if __name__ == "__main__":
