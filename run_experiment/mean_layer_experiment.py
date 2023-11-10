@@ -66,9 +66,11 @@ def experiment_mean_layer(
     for i, mean in tqdm(enumerate(test_means), total=len(test_means), unit="ts"):
         ts_predictions = np.empty_like(mean)
         ts_predictions[:context_length] = mean[:context_length]
-        for j in tqdm(range(context_length, mean.shape[0]), unit="step"):
+        ts_len, n_features = mean.shape
+        for j in tqdm(range(context_length, ts_len), unit="step"):
             pred = mean_layer.predict(mean[j - context_length : j].reshape(1, -1))
-            ts_predictions[j] = pred[0][0]  # we predict a single value per iteration
+            pred = pred.reshape(n_features, prediction_length)
+            ts_predictions[j] = pred[:, 0]  # we predict a single value per iteration
         mean_predictions.append(ts_predictions)
 
     # SAVE EVERYTHING

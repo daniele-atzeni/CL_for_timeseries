@@ -3,6 +3,8 @@ from scipy.optimize import minimize
 from scipy.special import gamma
 from tqdm import tqdm
 
+from joblib import Parallel, delayed
+
 
 class GASNormalizer:
     """
@@ -73,6 +75,9 @@ class GASNormalizer:
         for ts in tqdm(dataset, total=len(dataset), unit="ts"):
             # we normalize time_series features independently
             ts_results = []
+
+            """
+            # not in parallel
             for feat in tqdm(range(n_features), unit="feature"):
                 # we define the function to minimize
                 def func_to_minimize(x):
@@ -88,6 +93,27 @@ class GASNormalizer:
             # now ts_results is a list parameters (float) for each feature of the time series
             # we want a list of parameters (np.ndarray (n_features,)) for each time series
             ts_results = np.stack(ts_results, axis=1)
+            """
+
+            def inner_func(feat):
+                # we define the function to minimize
+                def func_to_minimize(x):
+                    # we must first unpack the input
+                    return self.compute_neg_log_likelihood(ts[:, feat], *x)
+
+                optimal = minimize(
+                    lambda x: func_to_minimize(x),
+                    x0=initial_guesses,
+                    bounds=bounds,
+                )
+                return optimal.x
+
+            # let's run the code for each feature in parallel
+            verbose = 0 if n_features == 1 else 10
+            ts_results = Parallel(n_jobs=-1, verbose=verbose)(
+                delayed(inner_func)(feat) for feat in range(n_features)
+            )  # this function mantains the ordering
+            ts_results = np.stack(ts_results, axis=1)  # type: ignore I'm sure it's a list of np.ndarray
 
             initial_params_list.append([el for el in ts_results])
         return initial_params_list
