@@ -4,7 +4,7 @@ from run_experiment.gas_experiment import run_gas_experiment
 
 
 if __name__ == "__main__":
-    DATASET_NAME = "nn5_daily_without_missing"
+    DATASET_NAME = "nn5_weekly"
     DATASET_TYPE = "gluonts"
 
     # this parameters are actually useless
@@ -31,19 +31,21 @@ if __name__ == "__main__":
     N_TEST_SAMPLES = 1000
     #
 
-    for mean_strength in [0.1, 0.2, 0.3, 0.4, 0.5]:
+    for mean_strength in [0.001, 0.01, 0.1, 0.2, 0.3, 0.4, 0.49, 0.499, 0.5]:
+        print(40 * "=")
         print(f"Trying strength {mean_strength}")
 
-        ROOT_FOLDER = f"T_STUD_CHANGING_STRENGTH_MULTIVARIATE_RESULTS_{mean_strength}"
+        ROOT_FOLDER = f"T_STUD_CHANGING_STRENGTH_MULTIVARIATE/RESULTS_{mean_strength}"
 
         NORMALIZER_NAME = "gas_t_student"
         NORMALIZER_INITIAL_GUESSES = np.array([0.001, 0.001, 0, 1, 3], dtype="float")
+        small_value = 1e-4
         NORMALIZER_BOUNDS = (
             (None, None),
-            (0.00001, 1),
-            (0, 0.999),
-            (0, 0.999),
-            (2.00001, 50),
+            (0 + small_value, 1 - small_value),
+            (0 + small_value, 1 - small_value),
+            (0 + small_value, 1 - small_value),
+            (50, 50),  # (2 + small_value, 50),
         )
         NORMALIZER_PARAMS = {
             "mean_strength": mean_strength,

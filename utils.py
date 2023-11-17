@@ -18,7 +18,7 @@ from torch import Tensor, from_numpy
 
 def init_folder(folder_name: str) -> str:
     if not os.path.exists(folder_name):
-        os.mkdir(folder_name)
+        os.makedirs(folder_name)
     return folder_name
 
 
