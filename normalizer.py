@@ -264,7 +264,11 @@ class GASComplexGaussian(GASGaussian):
 
 class GASTStudent(GASNormalizer):
     def __init__(
-        self, mean_strength: float, var_strength: float, eps: float = 1e-9
+        self,
+        mean_strength: float,
+        var_strength: float,
+        eps: float = 1e-9,
+        # max_var: float = 1000,
     ) -> None:
         super(GASTStudent, self).__init__()
 
@@ -274,34 +278,49 @@ class GASTStudent(GASNormalizer):
         self.mean_strength = mean_strength
         self.var_strength = var_strength
         self.eps = eps
+        # self.max_var = max_var
 
     def update_mean_and_var(
         self,
         ts_i: np.ndarray | float,
         mean: np.ndarray | float,
         var: np.ndarray | float,
-        eta_mean: np.ndarray | float,
-        eta_var: np.ndarray | float,
+        alpha_mean: np.ndarray | float,
+        alpha_var: np.ndarray | float,
+        beta_mean: np.ndarray | float,
+        beta_var: np.ndarray | float,
+        omega_mean: np.ndarray | float,
+        omega_var: np.ndarray | float,
         nu: np.ndarray | float,
     ) -> tuple[np.ndarray | float, np.ndarray | float]:
         mean_updated = mean + (
             (self.mean_strength) / (1 - self.mean_strength)
-        ) * eta_mean * (ts_i - mean) / (1 + (ts_i - mean) ** 2 / (nu * var))
+        ) * alpha_mean * (ts_i - mean) / (
+            1 + (ts_i - mean) ** 2 / (nu * var + self.eps)
+        )
+        mean_updated = omega_mean + beta_mean * mean_updated
+
         var_updated = var + (
             (self.var_strength) / (1 - self.var_strength)
-        ) * eta_var * (
-            (nu + 1) * (ts_i - mean) ** 2 / (nu + (ts_i - mean) ** 2 / var) - var
+        ) * alpha_var * (
+            (nu + 1) * (ts_i - mean) ** 2 / (nu + (ts_i - mean) ** 2 / (var + self.eps))
+            - var
         )
+        var_updated = omega_var + beta_var * var_updated
 
-        return mean_updated, var_updated
+        return mean_updated, var_updated  # np.minimum(var_updated, self.max_var)
 
     def compute_neg_log_likelihood(
         self,
         ts: np.ndarray,
         mean_0: float,
         var_0: float,
-        eta_mean: float,
-        eta_var: float,
+        alpha_mean: float,
+        alpha_var: float,
+        beta_mean: float,
+        beta_var: float,
+        omega_mean: float,
+        omega_var: float,
         nu: float,
     ) -> float:
         ts_length = ts.shape[0]
@@ -310,7 +329,18 @@ class GASTStudent(GASNormalizer):
         mean, var = mean_0, var_0
         for i, ts_i in enumerate(ts):
             prev_mean, prev_var = mean, var
-            mean, var = self.update_mean_and_var(ts_i, mean, var, eta_mean, eta_var, nu)
+            mean, var = self.update_mean_and_var(
+                ts_i,
+                mean,
+                var,
+                alpha_mean,
+                alpha_var,
+                beta_mean,
+                beta_var,
+                omega_mean,
+                omega_var,
+                nu,
+            )
             penalty_term_mean = 0.5 * (1 - self.mean_strength) * (mean - prev_mean) ** 2
             penalty_term_var = 0.5 * (1 - self.var_strength) * (var - prev_var) ** 2
 
@@ -319,8 +349,9 @@ class GASTStudent(GASNormalizer):
                 np.log(gamma((nu + 1) / 2))
                 - np.log(gamma(nu / 2))
                 - 0.5 * np.log(np.pi * nu)
-                - 0.5 * np.log(var)
-                - ((nu + 1) / 2) * np.log(1 + (next_ts - mean) ** 2 / (nu * var))
+                - 0.5 * np.log(var + self.eps)
+                - ((nu + 1) / 2)
+                * np.log(1 + (next_ts - mean) ** 2 / (nu * var + self.eps))
             )
             log_likelihood_i = (
                 (self.mean_strength + self.var_strength) * log_likelihood_i
@@ -345,11 +376,30 @@ class GASTStudent(GASNormalizer):
             ts_means = np.empty_like(ts)
             ts_vars = np.empty_like(ts)
 
-            mean, var, eta_mean, eta_var, nu = ts_params
+            (
+                mean,
+                var,
+                alpha_mean,
+                alpha_var,
+                beta_mean,
+                beta_var,
+                omega_mean,
+                omega_var,
+                nu,
+            ) = ts_params
 
             for i, ts_i in enumerate(ts):
                 mean, var = self.update_mean_and_var(
-                    ts_i, mean, var, eta_mean, eta_var, nu
+                    ts_i,
+                    mean,
+                    var,
+                    alpha_mean,
+                    alpha_var,
+                    beta_mean,
+                    beta_var,
+                    omega_mean,
+                    omega_var,
+                    nu,
                 )
                 ts_means[i] = mean
                 ts_vars[i] = var * nu / (nu - 2)  # check this

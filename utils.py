@@ -1,5 +1,6 @@
 import pickle
 import os
+import json
 from datetime import datetime
 from distutils.util import strtobool
 
@@ -10,9 +11,9 @@ import pandas as pd
 from gluonts.dataset.repository import get_dataset as gluonts_get_dataset
 from gluonts.dataset.multivariate_grouper import MultivariateGrouper
 
-from gluonts.dataset.common import ListDataset
+from gluonts.dataset.common import ListDataset, MetaData, TrainDatasets
 from gluonts.dataset.field_names import FieldName
-
+from gluonts.dataset.artificial import RecipeDataset, recipe as rcp
 from torch import Tensor, from_numpy
 
 
@@ -146,10 +147,18 @@ def prepare_dataset_for_torch_model(
     return ts_dataset_x, mean_dataset_x, ts_dataset_y
 
 
-def save_list_of_elements(folder: str, list_of_els: list) -> None:
+def save_list_of_elements(
+    folder: str, list_of_els: list, method: str = "pickle"
+) -> None:
     for i, el in enumerate(list_of_els):
-        with open(os.path.join(folder, f"ts_{i}.pkl"), "wb") as f:
-            pickle.dump(el, f)
+        if method == "pickle":
+            with open(os.path.join(folder, f"ts_{i}.pkl"), "wb") as f:
+                pickle.dump(el, f)
+        elif method == "json":
+            with open(os.path.join(folder, f"ts_{i}.json"), "w") as f:
+                json.dump(el, f)
+        else:
+            raise NotImplementedError(f"Method {method} not implemented.")
 
 
 def load_list_of_elements(folder: str) -> list:
@@ -160,60 +169,107 @@ def load_list_of_elements(folder: str) -> list:
     return res
 
 
+def get_synthetic_dataset(
+    dataset_name: str,
+    train_length: int,
+    prediction_length: int,
+    num_timeseries: int,
+    recipe: dict | None = None,
+    **kwargs,
+) -> TrainDatasets:
+    if recipe is None:
+        daily_smooth_seasonality = rcp.SmoothSeasonality(period=20, phase=0)
+        noise = rcp.RandomGaussian(stddev=0.1)
+        signal = daily_smooth_seasonality + noise
+
+        recipe = {FieldName.TARGET: signal}
+
+    train_length = 100
+    prediction_length = 10
+    num_timeseries = 10
+
+    data = RecipeDataset(
+        recipe=recipe,
+        metadata=MetaData(
+            freq="D",
+            feat_static_real=[],
+            feat_static_cat=[],
+            feat_dynamic_real=[],
+            prediction_length=prediction_length,
+        ),
+        max_train_length=train_length,
+        prediction_length=prediction_length,
+        num_timeseries=num_timeseries,
+        # trim_length_fun=lambda x, **kwargs: np.minimum(
+        #    int(np.random.geometric(1 / (kwargs["train_length"] / 2))),
+        #    kwargs["train_length"],
+        # ),
+    )
+
+    generated = data.generate()
+    assert generated.test is not None
+    info = data.dataset_info(generated.train, generated.test)
+
+    return TrainDatasets(info.metadata, generated.train, generated.test)
+
+
 def get_dataset_and_metadata(
-    dataset_name: str, dataset_type: str, multivariate: bool = False
-):
+    dataset_name: str, dataset_type: str, dataset_generation_params: dict
+) -> tuple:
     """
     This function retrieve a gluonts dataset with its metadata or generate a
     synthetic dataset and its metadata.
     """
+    multivariate = dataset_generation_params["multivariate"]
+
     if dataset_type == "gluonts":
         dataset = gluonts_get_dataset(dataset_name)
-        # we assume no missing values, i.e. time series of equal lengths
-        assert len(set([el["target"].shape[0] for el in dataset.train])) == 1, (
-            "Time series of different lengths in the train dataset. "
-            "This is not supported by the normalizer."
-        )
-        assert dataset.test is not None, "Test dataset cannot be None"
-        # dataset parameters
-        assert (
-            dataset.metadata.prediction_length is not None
-        ), "Prediction length cannot be None"
-        prediction_length = dataset.metadata.prediction_length
-        context_length = 2 * prediction_length
-        assert dataset.metadata.freq is not None, "Frequency length cannot be None"
-        freq = dataset.metadata.freq
-        n_features = (
-            1
-            if len(list(dataset.train)[0]["target"].shape) == 1
-            else list(dataset.train)[0]["target"].shape[1]
-        )
-        train_dataset = dataset.train
-        test_dataset = dataset.test
-
-        # we use gluonts multivariate grouper to combine the 1D elements of the dataset
-        # (list) into a list with a single 2D array (np.ndarray)
-        if multivariate:
-            n_features = len(dataset.train)
-            train_grouper = MultivariateGrouper(max_target_dim=n_features)
-            test_grouper = MultivariateGrouper(
-                max_target_dim=n_features,
-                num_test_dates=len(test_dataset) // n_features,
-            )
-            train_dataset = train_grouper(dataset.train)
-            test_dataset = test_grouper(dataset.test)
-        return (
-            train_dataset,
-            test_dataset,
-            prediction_length,
-            context_length,
-            freq,
-            n_features,
-        )
+    elif dataset_type == "synthetic":
+        dataset = get_synthetic_dataset(dataset_name, **dataset_generation_params)
     else:
-        raise NotImplementedError(
-            f"Dataset type {dataset_type} not implemented for dataset {dataset_name}"
+        raise NotImplementedError(f"Dataset type {dataset_type} not implemented.")
+
+    # we assume no missing values, i.e. time series of equal lengths
+    assert len(set([el["target"].shape[0] for el in dataset.train])) == 1, (
+        "Time series of different lengths in the train dataset. "
+        "This is not supported by the normalizer."
+    )
+    assert dataset.test is not None, "Test dataset cannot be None"
+    # dataset parameters
+    assert (
+        dataset.metadata.prediction_length is not None
+    ), "Prediction length cannot be None"
+    prediction_length = dataset.metadata.prediction_length
+    context_length = 2 * prediction_length
+    assert dataset.metadata.freq is not None, "Frequency length cannot be None"
+    freq = dataset.metadata.freq
+    n_features = (
+        1
+        if len(list(dataset.train)[0]["target"].shape) == 1
+        else list(dataset.train)[0]["target"].shape[1]
+    )
+    train_dataset = dataset.train
+    test_dataset = dataset.test
+
+    # we use gluonts multivariate grouper to combine the 1D elements of the dataset
+    # (list) into a list with a single 2D array (np.ndarray)
+    if multivariate:
+        n_features = len(dataset.train)
+        train_grouper = MultivariateGrouper(max_target_dim=n_features)
+        test_grouper = MultivariateGrouper(
+            max_target_dim=n_features,
+            num_test_dates=len(test_dataset) // n_features,
         )
+        train_dataset = train_grouper(dataset.train)
+        test_dataset = test_grouper(dataset.test)
+    return (
+        train_dataset,
+        test_dataset,
+        prediction_length,
+        context_length,
+        freq,
+        n_features,
+    )
 
 
 # THE FOLLOWING IS FOR LOADING TSF DATASETS AS GLUONTS DATASETS FROM FILES
@@ -477,7 +533,7 @@ def get_dataset_from_file(dataset_name, external_forecast_horizon, context_lengt
             }
         )
 
-    train_ds = ListDataset(train_series_full_list, freq=freq)
-    test_ds = ListDataset(test_series_full_list, freq=freq)
+    train_ds = ListDataset(train_series_full_list, freq=freq)  # type:ignore not my code
+    test_ds = ListDataset(test_series_full_list, freq=freq)  # type:ignore not my code
 
     return train_ds, test_ds, freq, seasonality

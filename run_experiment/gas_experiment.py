@@ -12,6 +12,7 @@ from run_experiment.dl_model_experiment import experiment_dl_model
 def run_gas_experiment(
     dataset_name: str,
     dataset_type: str,
+    dataset_generation_params: dict,
     root_folder_name: str,
     normalizer_name: str,
     normalizer_inital_guesses: np.ndarray,
@@ -26,11 +27,9 @@ def run_gas_experiment(
     n_test_samples: int = 1000,
     stop_after_normalizer: bool = False,
     stop_after_mean_layer: bool = False,
-    multivariate: bool = False,
 ) -> None:
     # INITIALIZE ROOT FOLDERS
     root_folder = init_folder(root_folder_name)
-    dataset_folder = init_folder(os.path.join(root_folder, dataset_name))
 
     # GET THE DATASET AND INITIALIZE ITS PARAMETERS
     print("Getting the dataset...")
@@ -41,8 +40,25 @@ def run_gas_experiment(
         context_length,
         freq,
         n_features,
-    ) = get_dataset_and_metadata(dataset_name, dataset_type, multivariate)
+    ) = get_dataset_and_metadata(dataset_name, dataset_type, dataset_generation_params)
     print("Done.")
+
+    # if the dataset is synthetic, we must save it
+    if dataset_type == "synthetic":
+        train_dataset_filename = os.path.join(root_folder, "train_dataset.pkl")
+        test_dataset_filename = os.path.join(root_folder, "test_dataset.pkl")
+        # if it already exists, we load it (even if we computed it)
+        if os.path.exists(train_dataset_filename):
+            with open(train_dataset_filename, "rb") as f:
+                train_orig_dataset = pickle.load(f)
+            with open(test_dataset_filename, "rb") as f:
+                test_orig_dataset = pickle.load(f)
+        # otherwise we save it
+        else:
+            with open(train_dataset_filename, "wb") as f:
+                pickle.dump(train_orig_dataset, f)
+            with open(test_dataset_filename, "wb") as f:
+                pickle.dump(test_orig_dataset, f)
 
     # CONVERT DATASET FOR NORMALIZER
     # We must produce a new dataset cause normalizers work on list of numpy arrays
@@ -64,7 +80,7 @@ def run_gas_experiment(
     # with this phase we will save
     # - normalizer initialization parameters
     # - normalizer best params, normalized_ts, means, vars for each ts for train and test
-    normalizer_folder = init_folder(os.path.join(dataset_folder, normalizer_name))
+    normalizer_folder = init_folder(os.path.join(root_folder, normalizer_name))
     norm_parameters_folder = init_folder(
         os.path.join(normalizer_folder, "normalizer_params")
     )
@@ -115,7 +131,7 @@ def run_gas_experiment(
     # - trained mean layer
     # - score of the training phase
     # - mean_layer next point predictions for each time series in the test dataset
-    mean_layer_folder = init_folder(os.path.join(dataset_folder, mean_layer_name))
+    mean_layer_folder = init_folder(os.path.join(root_folder, mean_layer_name))
     mean_layer_filename = os.path.join(mean_layer_folder, "mean_layer.pkl")
     mean_layer_results_filename = os.path.join(mean_layer_folder, "results.txt")
     mean_layer_preds_folder = init_folder(
@@ -154,7 +170,7 @@ def run_gas_experiment(
     # - trained torch model
     # - torch model results
     dl_model_folder = init_folder(
-        os.path.join(dataset_folder, f"{dl_model_library}_{dl_model_name}")
+        os.path.join(root_folder, f"{dl_model_library}_{dl_model_name}")
     )
     dl_model_filename = os.path.join(dl_model_folder, "dl_model.pkl")
     dl_model_results_folder = init_folder(os.path.join(dl_model_folder, "results"))
