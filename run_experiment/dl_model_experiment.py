@@ -1,7 +1,7 @@
 from gluonts.mx import Trainer
 from gluonts.evaluation import make_evaluation_predictions, Evaluator
 from gluonts.dataset.common import ListDataset
-from gluonts.mx.distribution import LowrankMultivariateGaussianOutput
+from gluonts.mx.distribution import StudentTOutput, MultivariateGaussianOutput
 
 import mxnet as mx
 import torch
@@ -30,10 +30,12 @@ def experiment_gluonts(
     n_features: int,
     context_length: int,
     prediction_length: int,
-    norm_train_dataset: list[np.ndarray],
+    train_dataset: list[np.ndarray],
     train_means: list[np.ndarray],
-    norm_test_dataset: list[np.ndarray],
+    train_vars: list[np.ndarray],
+    test_dataset: list[np.ndarray],
     test_means: list[np.ndarray],
+    test_vars: list[np.ndarray],
     weights: np.ndarray,
     bias: np.ndarray,
     dl_model_name: str,
@@ -51,17 +53,21 @@ def experiment_gluonts(
     predictor_parameters = dl_model_params["prediction"]
     evaluator_parameters = dl_model_params["evaluation"]
     # GLUONTS DATASET INITIALIZATION
-    # we must create a new GluonTS dataset wirh normalized time series and means as new features
+    # we must create a new GluonTS dataset wirh normalized time series and means
+    # and vars as new features.
+    # feat_dynamic_real will be a 2D array of shape (2 * n_features, n_samples)
+    # the first n_feature rows are the means, the second are the vars.
+
     if n_features == 1:
         gluonts_train_dataset = ListDataset(
             [
                 {
                     "target": el.squeeze(),  # if univariate, this must be 1D
                     "start": start,
-                    "feat_dynamic_real": mean.reshape((n_features, -1)),
-                }  # GluonTS expect 2D arrays as dynamic_features of shape (n_features, length)
-                for el, start, mean in zip(
-                    norm_train_dataset, train_starts, train_means
+                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                }
+                for el, start, mean, var in zip(
+                    train_dataset, train_starts, train_means, train_vars
                 )
             ],
             freq=freq,
@@ -71,9 +77,11 @@ def experiment_gluonts(
                 {
                     "target": el.squeeze(),  # if univariate, this must be 1D
                     "start": start,
-                    "feat_dynamic_real": mean.reshape((n_features, -1)),
-                }  # GluonTS expect 2D arrays as dynamic_features of shape (n_features, length)
-                for el, start, mean in zip(norm_test_dataset, test_starts, test_means)
+                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                }
+                for el, start, mean, var in zip(
+                    test_dataset, test_starts, test_means, test_vars
+                )
             ],
             freq=freq,
         )
@@ -83,10 +91,10 @@ def experiment_gluonts(
                 {
                     "target": el.T,
                     "start": start,
-                    "feat_dynamic_real": mean.reshape((n_features, -1)),
-                }  # GluonTS expect 2D arrays as dynamic_features of shape (n_features, length)
-                for el, start, mean in zip(
-                    norm_train_dataset, train_starts, train_means
+                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                }
+                for el, start, mean, var in zip(
+                    train_dataset, train_starts, train_means, test_vars
                 )
             ],
             freq=freq,
@@ -97,62 +105,15 @@ def experiment_gluonts(
                 {
                     "target": el.T,
                     "start": start,
-                    "feat_dynamic_real": mean.reshape((n_features, -1)),
-                }  # GluonTS expect 2D arrays as dynamic_features of shape (n_features, length)
-                for el, start, mean in zip(norm_test_dataset, test_starts, test_means)
+                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                }
+                for el, start, mean, var in zip(
+                    test_dataset, test_starts, test_means, test_vars
+                )
             ],
             freq=freq,
             one_dim_target=False,
         )
-        """
-        # ListDataset accepts only 1D arrays as target. We can use it, but then
-        # we have to combine it with the multivariate grouper
-        assert (
-            len(norm_train_dataset) > 0
-            and len(norm_test_dataset) > 0
-            and len(train_starts) > 0
-            and len(test_starts) > 0
-            and len(train_means) > 0
-            and len(test_means) > 0
-        ), "Empty dataset"
-
-        for el, start, mean in zip(norm_train_dataset, train_starts, train_means):
-            gluonts_train_dataset = ListDataset(
-                [
-                    {
-                        "target": el[
-                            :, i
-                        ],  # type:ignore # el is a numpy array, don't know the reasons for this typing error
-                        "start": start,
-                    }
-                    for i in range(n_features)
-                ],
-                freq=freq,
-            )
-            train_grouper = MultivariateGrouper(max_target_dim=n_features)
-            gluonts_train_dataset = train_grouper(gluonts_train_dataset)
-            list(gluonts_train_dataset)[0][
-                "feat_dynamic_real"
-            ] = mean.T  # GluonTS wants (n_features, length)
-
-        for el, start, mean in zip(norm_test_dataset, test_starts, test_means):
-            gluonts_test_dataset = ListDataset(
-                [
-                    {
-                        "target": el[:, i],
-                        "start": start,
-                    }
-                    for i in range(n_features)
-                ],
-                freq=freq,
-            )
-            test_grouper = MultivariateGrouper(
-                max_target_dim=n_features,
-                num_test_dates=len(norm_test_dataset) // n_features,
-            )
-            gluonts_test_dataset = test_grouper(gluonts_test_dataset)
-            list(gluonts_test_dataset)[0]["feat_dynamic_real"] = mean.T
-            """
 
     # ESTIMATOR INITIALIZATION
     # we have to initialize the mean linear layer first
@@ -180,22 +141,24 @@ def experiment_gluonts(
     print("Initializing the estimator...")
     trainer = Trainer(**trainer_parameters)
     if dl_model_name == "feedforward":
-        estimator = FF_gluonts(
-            mean_layer,
-            prediction_length=prediction_length,
-            context_length=context_length,
-            trainer=trainer,
-            **estimator_parameters,
-        )
-    elif dl_model_name == "multivariate_feedforward":
-        estimator = FF_gluonts_multivariate(
-            mean_layer,
-            prediction_length=prediction_length,
-            context_length=context_length,
-            distr_output=LowrankMultivariateGaussianOutput(dim=n_features, rank=5),
-            trainer=trainer,
-            **estimator_parameters,
-        )
+        if n_features == 1:
+            estimator = FF_gluonts(
+                mean_layer,
+                StudentTOutput(),
+                prediction_length=prediction_length,
+                context_length=context_length,
+                trainer=trainer,
+                **estimator_parameters,
+            )
+        else:
+            estimator = FF_gluonts_multivariate(
+                mean_layer,
+                MultivariateGaussianOutput(dim=n_features),
+                prediction_length=prediction_length,
+                context_length=context_length,
+                trainer=trainer,
+                **estimator_parameters,
+            )
     else:
         raise ValueError(f"Unknown estimator name: {dl_model_name}")
 
@@ -240,8 +203,10 @@ def experiment_torch(
     prediction_length: int,
     norm_train_dataset: list[np.ndarray],
     train_means: list[np.ndarray],
+    train_vars: list[np.ndarray],
     norm_test_dataset: list[np.ndarray],
     test_means: list[np.ndarray],
+    test_vars: list[np.ndarray],
     weights: np.ndarray,
     bias: np.ndarray,
     dl_model_name: str,
@@ -349,10 +314,12 @@ def experiment_dl_model(
     n_features: int,
     context_length: int,
     prediction_length: int,
-    norm_train_dataset: list[np.ndarray],
+    train_dataset: list[np.ndarray],
     train_means: list[np.ndarray],
-    norm_test_dataset: list[np.ndarray],
+    train_vars: list[np.ndarray],
+    test_dataset: list[np.ndarray],
     test_means: list[np.ndarray],
+    test_vars: list[np.ndarray],
     weights: np.ndarray,
     bias: np.ndarray,
     dl_model_name: str,
@@ -375,10 +342,12 @@ def experiment_dl_model(
             n_features,
             context_length,
             prediction_length,
-            norm_train_dataset,
+            train_dataset,
             train_means,
-            norm_test_dataset,
+            train_vars,
+            test_dataset,
             test_means,
+            test_vars,
             weights,
             bias,
             dl_model_name,
@@ -398,10 +367,12 @@ def experiment_dl_model(
             n_features,
             context_length,
             prediction_length,
-            norm_train_dataset,
+            train_dataset,
             train_means,
-            norm_test_dataset,
+            train_vars,
+            test_dataset,
             test_means,
+            test_vars,
             weights,
             bias,
             dl_model_name,

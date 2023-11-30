@@ -121,9 +121,9 @@ def run_gas_experiment(
     # this function computes and saves results and parameters from the normalization
     # we have to load some data again for the next steps
     train_means = load_list_of_elements(train_means_folder)
+    train_vars = load_list_of_elements(train_vars_folder)
     test_means = load_list_of_elements(test_means_folder)
-    norm_train_dataset = load_list_of_elements(train_normalized_folder)
-    norm_test_dataset = load_list_of_elements(test_normalized_folder)
+    test_vars = load_list_of_elements(test_vars_folder)
 
     # MEAN LAYER PHASE
     # with this phase we will save
@@ -180,10 +180,12 @@ def run_gas_experiment(
         n_features,
         context_length,
         prediction_length,
-        norm_train_dataset,
+        train_dataset,
         train_means,
-        norm_test_dataset,
+        train_vars,
+        test_dataset,
         test_means,
+        test_vars,
         weights,
         bias,
         dl_model_name,

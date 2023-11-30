@@ -33,11 +33,11 @@ gas_complex_gauss_params = {"eps": 1e-9, "regularization": "full"}
 
 # student t
 gas_t_stud_initial_guesses = np.array(
-    [0, 1, 0.001, 0.001, 1, 1, 0, 0, 3], dtype=np.float32
+    [0, 1, 0 + small_val, 0 + small_val, 1, 1, 0, 0, 3], dtype=np.float32
 )
 gas_t_stud_bounds = (
     (None, None),
-    (0 + small_val, None),
+    (0, None),
     (0 + small_val, 1 - small_val),
     (0 + small_val, 1 - small_val),
     (0 + small_val, 1 - small_val),
@@ -47,7 +47,7 @@ gas_t_stud_bounds = (
     (2 + small_val, 50),
 )
 gas_t_stud_params = {
-    "mean_strength": 0.2,
+    "mean_strength": 0.5,
     "var_strength": 0.5,
     "eps": 1e-6,
     # "max_var": 1000,
@@ -65,7 +65,7 @@ gluonts_multivariate_feedforward_params = {
     },
     "training": {
         "epochs": 5,
-        "learning_rate": 1e-3,
+        "learning_rate": 5 * 1e-4,
         "num_batches_per_epoch": 100,
     },
     "prediction": {"num_samples": 100},

@@ -248,6 +248,18 @@ def get_dataset_and_metadata(
         if len(list(dataset.train)[0]["target"].shape) == 1
         else list(dataset.train)[0]["target"].shape[1]
     )
+    """
+    # squeeze everything to avoid overflow problems
+    squeeze_factor = np.mean(list(dataset.train)[0]["target"][:context_length])
+    train_dataset = []
+    for el in dataset.train:
+        el["target"] = el["target"] / squeeze_factor
+        train_dataset.append(el)
+    test_dataset = []
+    for el in dataset.test:
+        el["target"] = el["target"] / squeeze_factor
+        test_dataset.append(el)
+    """
     train_dataset = dataset.train
     test_dataset = dataset.test
 

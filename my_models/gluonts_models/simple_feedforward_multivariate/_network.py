@@ -117,11 +117,13 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         Tensor
             An array containing the scale of the distribution.
         """
+        n_features = past_target.shape[-1]
+
         scaled_target, target_scale = self.scaler(
             past_target,
             F.ones_like(past_target),
         )
-        mlp_outputs = self.mlp(scaled_target)
+        mlp_outputs = self.mlp(scaled_target.flatten()).reshape(..., n_features)
 
         distr_args = self.distr_args_proj(mlp_outputs)
 
@@ -130,15 +132,17 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
 
         """My code here"""
         # we must include the prediction of the linear layer for the means
-        pred_means = self.mean_layer(past_feat_dynamic_real)
+        pred_means = self.mean_layer(past_feat_dynamic_real.flatten()).reshape(
+            ..., n_features
+        )
         # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
-        new_distr_args = tuple(
+        distr_args = tuple(
             [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
         )
-        # I hope that in distr_args[0] there is the mean
+        # in distr_args[0] there is the mean
         """ end """
 
-        return new_distr_args, loc, scale  # return distr_args, loc, scale
+        return distr_args, loc, scale  # return distr_args, loc, scale
 
 
 class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):

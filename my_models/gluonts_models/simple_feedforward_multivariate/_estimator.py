@@ -52,8 +52,6 @@ from ._network import (
     SimpleFeedForwardTrainingNetwork,
 )
 
-import numpy as np
-
 
 class SimpleFeedForwardEstimator(GluonEstimator):
     """

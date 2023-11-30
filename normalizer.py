@@ -76,36 +76,28 @@ class GASNormalizer:
             # we normalize time_series features independently
             ts_results = []
 
-            """
-            # not in parallel
-            for feat in tqdm(range(n_features), unit="feature"):
-                # we define the function to minimize
-                def func_to_minimize(x):
-                    # we must first unpack the input
-                    return self.compute_neg_log_likelihood(ts[:, feat], *x)
-
-                optimal = minimize(
-                    lambda x: func_to_minimize(x),
-                    x0=initial_guesses,
-                    bounds=bounds,
-                )
-                ts_results.append(optimal.x)
-            # now ts_results is a list parameters (float) for each feature of the time series
-            # we want a list of parameters (np.ndarray (n_features,)) for each time series
-            ts_results = np.stack(ts_results, axis=1)
-            """
-
             def inner_func(feat):
+                # update initial guesses based on the time series
+                ts_initial_guesses = initial_guesses.copy()
+                ts_initial_guesses[0] = np.mean(ts[:, feat], axis=0)
+                ts_initial_guesses[1] = np.var(ts[:, feat], axis=0)
+
                 # we define the function to minimize
                 def func_to_minimize(x):
                     # we must first unpack the input
                     return self.compute_neg_log_likelihood(ts[:, feat], *x)
 
                 optimal = minimize(
-                    lambda x: func_to_minimize(x),
-                    x0=initial_guesses,
+                    func_to_minimize,
+                    x0=ts_initial_guesses,
                     bounds=bounds,
+                    # method="Powell",
+                    # options={"disp": True},
                 )
+                """if not optimal.success:
+                    raise RuntimeError(
+                        f"Error in minimization of negative log likelihood: {optimal.message}"
+                    )"""
                 return optimal.x
 
             # let's run the code for each feature in parallel
@@ -308,7 +300,7 @@ class GASTStudent(GASNormalizer):
         )
         var_updated = omega_var + beta_var * var_updated
 
-        return mean_updated, var_updated  # np.minimum(var_updated, self.max_var)
+        return mean_updated, var_updated
 
     def compute_neg_log_likelihood(
         self,
