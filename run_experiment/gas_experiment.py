@@ -205,24 +205,18 @@ def run_gas_experiment(
             dl_folders,
         )
     elif dl_model_library == "torch":
-        train_dataset, test_dataset = data_manager.get_torch_dataset_for_dl_layer()
         experiment_torch(
             data_manager.n_features,
             data_manager.context_length,
             data_manager.prediction_length,
-            train_dataset,
-            train_means,
-            train_vars,
-            test_dataset,
-            test_means,
-            test_vars,
+            data_manager.get_torch_dataset_for_dl_layer(
+                n_training_samples, n_test_samples
+            ),
             regr.coef_,  # regressor weights
             regr.intercept_,  # regressor bias
             dl_model_name,
             dl_model_params,
             dl_folders,
-            n_training_samples,
-            n_test_samples,
         )
     else:
         raise ValueError(f"Unknown deep learning library: {dl_model_library}")

@@ -132,19 +132,12 @@ def experiment_torch(
     n_features: int,
     context_length: int,
     prediction_length: int,
-    norm_train_dataset: list[np.ndarray],
-    train_means: list[np.ndarray],
-    train_vars: list[np.ndarray],
-    norm_test_dataset: list[np.ndarray],
-    test_means: list[np.ndarray],
-    test_vars: list[np.ndarray],
+    datasets: tuple[TensorDataset, TensorDataset],
     weights: np.ndarray,
     bias: np.ndarray,
     dl_model_name: str,
     dl_model_params: dict,
     folders: dict,
-    n_training_samples: int,
-    n_test_samples: int,
 ) -> None:
     # retrieve folders
     dl_model_folder = folders["dl_model"]
@@ -156,21 +149,8 @@ def experiment_torch(
     prediction_parameters = dl_model_params["prediction"]
     evaluation_parameters = dl_model_params["evaluation"]
     # PYTORCH DATASET INITIALIZATION
-    train_x, train_mean, train_y = prepare_dataset_for_torch_model(
-        norm_train_dataset,
-        train_means,
-        context_length,
-        prediction_length,
-        n_training_samples,
-    )
-    test_x, test_mean, test_y = prepare_dataset_for_torch_model(
-        norm_test_dataset, test_means, context_length, prediction_length, n_test_samples
-    )
-    # x: (n_samples, context_length, n_features)
-    # mean: (n_samples, context_length * n_features)
-    # y: (n_samples, prediction_length, n_features)
+    train_dataset, test_dataset = datasets
 
-    train_dataset = TensorDataset(train_x, train_mean, train_y)
     train_dataloader = DataLoader(
         train_dataset, batch_size=training_parameters["batch_size"]
     )
@@ -215,9 +195,9 @@ def experiment_torch(
 
     model.train()
     for epoch in tqdm(range(training_parameters["epochs"]), unit="epoch"):
-        for train_x, train_mean, train_y in train_dataloader:
+        for train_x, train_mean, train_var, train_y in train_dataloader:
             optimizer.zero_grad()
-            output = model(train_x, train_mean)
+            output = model(train_x, train_mean, train_var)
             loss_value = loss(output, train_y)
             loss_value.backward()
             optimizer.step()
@@ -226,8 +206,11 @@ def experiment_torch(
     # EVALUATE IT
     print("Evaluating the model...")
     model.eval()
-    pred_y = model(test_x, test_mean)
-    loss_value = loss(pred_y, test_y).item()
+    running_loss = 0.0
+    for test_x, test_mean, test_var, test_y in test_dataset:
+        pred_y = model(test_x, test_mean, test_var)
+        running_loss += loss(pred_y, test_y).item()
+    loss_value = running_loss / len(test_dataset)
     print("Done.")
 
     # SAVE EVERYTHING

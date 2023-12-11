@@ -5,11 +5,21 @@ from gluonts.dataset.repository import get_dataset as gluonts_get_dataset
 from gluonts.dataset.common import ListDataset
 from gluonts.dataset.multivariate_grouper import MultivariateGrouper
 
+from torch import from_numpy
+from torch.utils.data import TensorDataset
+
 TSDataset = list[np.ndarray]
 
 
 class GluonTSDataManager:
     def __init__(self, name: str, multivariate: bool) -> None:
+        """
+        Initialize the data manager. The stored train and test time series are
+        lists of dict with the "target" field being either 1D array (univariate)
+        or 2D array (n_feat, ts_length) (multivariate).
+        The data obtained by the normalizer are lists of numpy arrays of shape
+        (ts_length, n_features), with n_features = 1 for univariate.
+        """
         self.name = name
         self.multivariate = multivariate
         self.init_main_dataset()
@@ -91,16 +101,16 @@ class GluonTSDataManager:
         self.test_means = test_means
         self.test_vars = test_vars
 
-    def _split_data_for_mean_layer(
-        self, n_samples: int, phase: str, seed: int
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def _prepare_for_sampling_ts(self, n_samples: int, phase: str, seed: int) -> tuple:
         assert phase in ["train", "test"], "Wrong phase"
         if phase == "train":
             dataset = [el["target"] for el in self.train_dataset]
             means = self.train_means
+            vars = self.train_vars
         else:
             dataset = [el["target"] for el in self.test_dataset]
             means = self.test_means
+            vars = self.test_vars
         assert means is not None, "Data from normalizer not set"
 
         np.random.seed(seed)
@@ -118,6 +128,18 @@ class GluonTSDataManager:
                     size=n_samples_per_ts,
                 )
             )
+        return dataset, means, vars, start_indices, n_samples_per_ts
+
+    def _split_data_for_mean_layer(
+        self, n_samples: int, phase: str, seed: int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        (
+            dataset,
+            means,
+            _,  # no need for vars in this case
+            start_indices,
+            n_samples_per_ts,
+        ) = self._prepare_for_sampling_ts(n_samples, phase, seed)
         # init results
         mean_layer_x = np.empty((n_samples, self.context_length * self.n_features))
         mean_layer_y = np.empty((n_samples, self.prediction_length * self.n_features))
@@ -230,8 +252,96 @@ class GluonTSDataManager:
 
         return train_dataset, test_dataset
 
-    def get_torch_dataset_for_dl_layer(self):
-        pass
+    def _split_data_for_dl_layer(
+        self, n_samples: int, phase: str, seed: int
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        (
+            dataset,
+            means,
+            vars,
+            start_indices,
+            n_samples_per_ts,
+        ) = self._prepare_for_sampling_ts(n_samples, phase, seed)
+
+        # init results
+        shape_x = (n_samples, self.context_length, self.n_features)
+        shape_y = (n_samples, self.prediction_length, self.n_features)
+        dl_layer_x = np.empty(shape_x)
+        dl_means_x = np.empty(shape_x)
+        dl_vars_x = np.empty(shape_x)
+        dl_layer_y = np.empty(shape_y)
+
+        # slice and fill the arrays
+        for i, (ts, mean_ts, var_ts, start_idxs) in enumerate(
+            zip(dataset, means, vars, start_indices)
+        ):
+            for start_idx in start_idxs:
+                # ts is shape (n_features, ts_length) or (ts_length)
+                # mean_ts is shape (ts_length, n_features)
+                # var_ts is shape (ts_length, n_features)
+                ts_window_x = ts[..., start_idx : start_idx + self.context_length]
+                mean_window_x = mean_ts[start_idx : start_idx + self.context_length]
+                var_window_x = var_ts[start_idx : start_idx + self.context_length]
+
+                ts_window_y = ts[
+                    ...,
+                    start_idx
+                    + self.context_length : start_idx
+                    + self.context_length
+                    + self.prediction_length,
+                ]
+
+                if self.multivariate:
+                    ts_window_x = ts_window_x.T
+                    ts_window_y = ts_window_y.T
+                else:
+                    ts_window_x = np.expand_dims(ts_window_x, -1)
+                    ts_window_y = np.expand_dims(ts_window_y, -1)
+
+                dl_layer_x[i] = ts_window_x
+                dl_means_x[i] = mean_window_x
+                dl_vars_x[i] = var_window_x
+                dl_layer_y[i] = ts_window_y
+
+        return dl_layer_x, dl_means_x, dl_vars_x, dl_layer_y
+
+    def get_torch_dataset_for_dl_layer(
+        self, n_training_samples: int, n_test_samples: int, seed: int = 42
+    ) -> tuple[TensorDataset, TensorDataset]:
+        """
+        This method creates the dataset for the Torch DL model. Data for the DL
+        model are of shape (n_samples, context_length, n_features) for x and
+        (n_samples, prediction_length, n_features) for y.
+        The model needs as x windows of:
+        - the dataset
+        - the means
+        - the vars
+        The model needs windows of the dataset as y.
+        Dataset normalization takes place inside of the forward of the models.
+        """
+        train_x, train_mean, train_var, train_y = self._split_data_for_dl_layer(
+            n_training_samples, "train", seed
+        )
+        test_x, test_mean, test_var, test_y = self._split_data_for_dl_layer(
+            n_test_samples, "test", seed
+        )
+        # x: (n_samples, context_length, n_features)
+        # mean: (n_samples, context_length * n_features)
+        # y: (n_samples, prediction_length, n_features)
+
+        train_dataset = TensorDataset(
+            from_numpy(train_x),
+            from_numpy(train_mean),
+            from_numpy(train_var),
+            from_numpy(train_y),
+        )
+        test_dataset = TensorDataset(
+            from_numpy(test_x),
+            from_numpy(test_mean),
+            from_numpy(test_var),
+            from_numpy(test_y),
+        )
+        return train_dataset, test_dataset
 
 
 class SyntheticDatasetGetter(GluonTSDataManager):
