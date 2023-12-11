@@ -21,37 +21,8 @@ from gluonts.mx.block.scaler import MeanScaler, NOPScaler
 from gluonts.mx.distribution import DistributionOutput
 from gluonts.mx.util import weighted_average
 
-import numpy as np
-
 
 class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
-    """
-    Abstract base class to implement feed-forward networks for probabilistic
-    time series prediction.
-
-    This class does not implement hybrid_forward: this is delegated
-    to the two subclasses SimpleFeedForwardTrainingNetwork and
-    SimpleFeedForwardPredictionNetwork, that define respectively how to
-    compute the loss and how to generate predictions.
-
-    Parameters
-    ----------
-    num_hidden_dimensions
-        Number of hidden nodes in each layer.
-    prediction_length
-        Number of time units to predict.
-    context_length
-        Number of time units that condition the predictions.
-    batch_normalization
-        Whether to use batch normalization.
-    mean_scaling
-        Scale the network input by the data mean and the network output by
-        its inverse.
-    distr_output
-        Distribution to fit.
-    kwargs
-    """
-
     # Needs the validated decorator so that arguments types are checked and
     # the block can be serialized.
     @validated()
@@ -97,33 +68,31 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         self, F, past_target: Tensor, past_feat_dynamic_real: Tensor
     ) -> Tuple[Tensor, Tensor, Tensor]:
         """
-        Given past target values, applies the feed-forward network and maps the
-        output to the parameter of probability distribution for future
-        observations.
-
-        Parameters
-        ----------
-        F
-        past_target
-            Tensor containing past target observations.
-            Shape: (batch_size, context_length, target_dim).
-
-        Returns
-        -------
-        Tensor
-            The parameters of distribution.
-        Tensor
-            An array containing the location (shift) of the distribution.
-        Tensor
-            An array containing the scale of the distribution.
+        past_target (batch, context_length)
+        past_feat_dynamic_real (batch, context_length, n_features=2)    # contains mean and vars
+        scale_target as past_target
+        target_scale (batch)
+        mlp_outputs (batch, pred_length, last_net_hidden_dim)
+        distr_args tuple (3 * (batch, pred_length))
+        scale (batch, 1)
+        loc (batch, 1)
+        pred_means (batch, pred_length)
         """
-        n_features = past_target.shape[-1]
+        means = past_feat_dynamic_real.slice_axis(
+            axis=2, begin=0, end=1
+        ).squeeze()  # type:ignore
+        vars = past_feat_dynamic_real.slice_axis(
+            axis=2, begin=1, end=2
+        ).squeeze()  # type:ignore
+
+        # normalize past_target
+        past_target = (past_target - means) / (vars + 1e-8)
 
         scaled_target, target_scale = self.scaler(
             past_target,
             F.ones_like(past_target),
         )
-        mlp_outputs = self.mlp(scaled_target.flatten()).reshape(..., n_features)
+        mlp_outputs = self.mlp(scaled_target)
 
         distr_args = self.distr_args_proj(mlp_outputs)
 
@@ -131,18 +100,15 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         loc = F.zeros_like(scale)
 
         """My code here"""
-        # we must include the prediction of the linear layer for the means
-        pred_means = self.mean_layer(past_feat_dynamic_real.flatten()).reshape(
-            ..., n_features
-        )
-        # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
+        pred_means = self.mean_layer(means)
+        # we add mean layer preds to the means predicted by the output distribution
+        # i.e. the 0th element of distr_args
         distr_args = tuple(
             [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
         )
-        # in distr_args[0] there is the mean
-        """ end """
+        """end"""
 
-        return distr_args, loc, scale  # return distr_args, loc, scale
+        return distr_args, loc, scale  # type:ignore I know its a tuple of Tensors
 
 
 class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
@@ -151,45 +117,16 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
         F,
         past_target: Tensor,
         future_target: Tensor,
-        future_observed_values: Tensor,
         past_feat_dynamic_real: Tensor,
     ) -> Tensor:
-        """
-        Computes a probability distribution for future data given the past, and
-        returns the loss associated with the actual future observations.
-
-        Parameters
-        ----------
-        F
-        past_target
-            Tensor with past observations.
-            Shape: (batch_size, context_length, target_dim).
-        future_target
-            Tensor with future observations.
-            Shape: (batch_size, prediction_length, target_dim).
-        future_observed_values
-            Tensor indicating which values in the target are observed, and
-            which ones are imputed instead.
-
-        Returns
-        -------
-        Tensor
-            Loss tensor. Shape: (batch_size, ).
-        """
         distr_args, loc, scale = self.get_distr_args(
             F, past_target, past_feat_dynamic_real
         )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
-
         # (batch_size, prediction_length, target_dim)
         loss = distr.loss(future_target)
 
-        weighted_loss = weighted_average(
-            F=F, x=loss, weights=future_observed_values, axis=1
-        )
-
-        # (batch_size, )
-        return weighted_loss
+        return weighted_average(F=F, x=loss, weights=F.ones_like(loss), axis=1)
 
 
 class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
@@ -204,23 +141,6 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
         past_target: Tensor,
         past_feat_dynamic_real: Tensor,
     ) -> Tensor:
-        """
-        Computes a probability distribution for future data given the past, and
-        draws samples from it.
-
-        Parameters
-        ----------
-        F
-        past_target
-            Tensor with past observations.
-            Shape: (batch_size, context_length, target_dim).
-
-        Returns
-        -------
-        Tensor
-            Prediction sample. Shape: (batch_size, samples, prediction_length).
-        """
-
         distr_args, loc, scale = self.get_distr_args(
             F, past_target, past_feat_dynamic_real
         )
@@ -230,7 +150,7 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
         samples = distr.sample(self.num_parallel_samples)
 
         # (batch_size, num_samples, prediction_length)
-        return samples.swapaxes(0, 1)
+        return samples.swapaxes(0, 1)  # type:ignore not my code
 
 
 class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
@@ -242,27 +162,7 @@ class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
     def hybrid_forward(
         self, F, past_target: Tensor, past_feat_dynamic_real: Tensor
     ) -> Tensor:
-        """
-        Computes the parameters of distribution for future data given the past,
-        and draws samples from it.
-
-        Parameters
-        ----------
-        F
-        past_target
-            Tensor with past observations.
-            Shape: (batch_size, context_length, target_dim).
-
-        Returns
-        -------
-        Tensor
-            The parameters of distribution.
-        Tensor
-            An array containing the location (shift) of the distribution.
-        Tensor
-            An array containing the scale of the distribution.
-        """
         distr_args, loc, scale = self.get_distr_args(
             F, past_target, past_feat_dynamic_real
         )
-        return distr_args, loc, scale
+        return distr_args, loc, scale  # type:ignore not my code

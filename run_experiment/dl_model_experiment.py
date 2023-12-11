@@ -1,16 +1,16 @@
 from gluonts.mx import Trainer
 from gluonts.evaluation import make_evaluation_predictions, Evaluator
-from gluonts.dataset.common import ListDataset
+from gluonts.dataset import DataEntry
 from gluonts.mx.distribution import StudentTOutput, MultivariateGaussianOutput
 
 import mxnet as mx
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from my_models.gluonts_models.simple_feedforward._estimator import (
+from my_models.gluonts_models.feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts,
 )
-from my_models.gluonts_models.simple_feedforward_multivariate._estimator import (
+from my_models.gluonts_models.multivariate_feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate,
 )
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
@@ -20,100 +20,31 @@ import pickle
 import json
 
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
-
-from utils import prepare_dataset_for_torch_model
 
 
 def experiment_gluonts(
     n_features: int,
     context_length: int,
     prediction_length: int,
-    train_dataset: list[np.ndarray],
-    train_means: list[np.ndarray],
-    train_vars: list[np.ndarray],
-    test_dataset: list[np.ndarray],
-    test_means: list[np.ndarray],
-    test_vars: list[np.ndarray],
+    dataset: tuple[list[DataEntry], list[DataEntry]],
     weights: np.ndarray,
     bias: np.ndarray,
     dl_model_name: str,
     dl_model_params: dict,
-    dl_model_folder: str,
-    dl_model_filename: str,
-    results_folder: str,
-    freq: str,
-    train_starts: list[pd.Timestamp],
-    test_starts: list[pd.Timestamp],
+    folders: dict,
 ) -> None:
+    # retrieve the dataset
+    gluonts_train_dataset, gluonts_test_dataset = dataset
+    # retrieve folders
+    dl_model_folder = folders["dl_model"]
+    dl_model_filename = folders["dl_model_filename"]
+    results_folder = folders["dl_model_results"]
     # retrieve initialization parameters
     estimator_parameters = dl_model_params["main_model"]
     trainer_parameters = dl_model_params["training"]
     predictor_parameters = dl_model_params["prediction"]
     evaluator_parameters = dl_model_params["evaluation"]
-    # GLUONTS DATASET INITIALIZATION
-    # we must create a new GluonTS dataset wirh normalized time series and means
-    # and vars as new features.
-    # feat_dynamic_real will be a 2D array of shape (2 * n_features, n_samples)
-    # the first n_feature rows are the means, the second are the vars.
-
-    if n_features == 1:
-        gluonts_train_dataset = ListDataset(
-            [
-                {
-                    "target": el.squeeze(),  # if univariate, this must be 1D
-                    "start": start,
-                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                }
-                for el, start, mean, var in zip(
-                    train_dataset, train_starts, train_means, train_vars
-                )
-            ],
-            freq=freq,
-        )
-        gluonts_test_dataset = ListDataset(
-            [
-                {
-                    "target": el.squeeze(),  # if univariate, this must be 1D
-                    "start": start,
-                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                }
-                for el, start, mean, var in zip(
-                    test_dataset, test_starts, test_means, test_vars
-                )
-            ],
-            freq=freq,
-        )
-    else:
-        gluonts_train_dataset = ListDataset(
-            [
-                {
-                    "target": el.T,
-                    "start": start,
-                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                }
-                for el, start, mean, var in zip(
-                    train_dataset, train_starts, train_means, test_vars
-                )
-            ],
-            freq=freq,
-            one_dim_target=False,
-        )
-        gluonts_test_dataset = ListDataset(
-            [
-                {
-                    "target": el.T,
-                    "start": start,
-                    "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                }
-                for el, start, mean, var in zip(
-                    test_dataset, test_starts, test_means, test_vars
-                )
-            ],
-            freq=freq,
-            one_dim_target=False,
-        )
 
     # ESTIMATOR INITIALIZATION
     # we have to initialize the mean linear layer first
@@ -211,12 +142,14 @@ def experiment_torch(
     bias: np.ndarray,
     dl_model_name: str,
     dl_model_params: dict,
-    dl_model_folder: str,
-    dl_model_filename: str,
-    results_folder: str,
+    folders: dict,
     n_training_samples: int,
     n_test_samples: int,
 ) -> None:
+    # retrieve folders
+    dl_model_folder = folders["dl_model"]
+    dl_model_filename = folders["dl_model_filename"]
+    results_folder = folders["dl_model_results"]
     # retrieve initialization parameters
     model_parameters = dl_model_params["main_model"]
     training_parameters = dl_model_params["training"]
@@ -307,82 +240,3 @@ def experiment_torch(
     # save agg_metrics as json and item_metrics as csv
     with open(os.path.join(results_folder, "metrics.txt"), "w") as f:
         f.write(str(loss_value))
-
-
-def experiment_dl_model(
-    library: str,
-    n_features: int,
-    context_length: int,
-    prediction_length: int,
-    train_dataset: list[np.ndarray],
-    train_means: list[np.ndarray],
-    train_vars: list[np.ndarray],
-    test_dataset: list[np.ndarray],
-    test_means: list[np.ndarray],
-    test_vars: list[np.ndarray],
-    weights: np.ndarray,
-    bias: np.ndarray,
-    dl_model_name: str,
-    dl_model_params: dict,
-    dl_model_folder: str,
-    dl_model_filename: str,
-    results_folder: str,
-    freq: str | None = None,
-    train_starts: list[pd.Timestamp] | None = None,
-    test_starts: list[pd.Timestamp] | None = None,
-    n_training_samples: int | None = None,
-    n_test_samples: int | None = None,
-):
-    if library == "torch":
-        assert (
-            n_training_samples is not None
-        ), "n_training_samples must be specified for torch"
-        assert n_test_samples is not None, "n_test_samples must be specified for torch"
-        experiment_torch(
-            n_features,
-            context_length,
-            prediction_length,
-            train_dataset,
-            train_means,
-            train_vars,
-            test_dataset,
-            test_means,
-            test_vars,
-            weights,
-            bias,
-            dl_model_name,
-            dl_model_params,
-            dl_model_folder,
-            dl_model_filename,
-            results_folder,
-            n_training_samples,
-            n_test_samples,
-        )
-
-    elif library == "gluonts":
-        assert freq is not None, "freq must be specified for gluonts"
-        assert train_starts is not None, "train_starts must be specified for gluonts"
-        assert test_starts is not None, "test_starts must be specified for gluonts"
-        experiment_gluonts(
-            n_features,
-            context_length,
-            prediction_length,
-            train_dataset,
-            train_means,
-            train_vars,
-            test_dataset,
-            test_means,
-            test_vars,
-            weights,
-            bias,
-            dl_model_name,
-            dl_model_params,
-            dl_model_folder,
-            dl_model_filename,
-            results_folder,
-            freq,
-            train_starts,
-            test_starts,
-        )
-    else:
-        raise ValueError(f"Unknown library: {library}")

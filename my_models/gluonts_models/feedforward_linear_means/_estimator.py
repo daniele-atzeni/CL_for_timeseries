@@ -52,81 +52,18 @@ from ._network import (
     SimpleFeedForwardTrainingNetwork,
 )
 
-import numpy as np
-
 
 class SimpleFeedForwardEstimator(GluonEstimator):
-    """
-    SimpleFeedForwardEstimator shows how to build a simple MLP model predicting
-    the next target time-steps given the previous ones.
-
-    Given that we want to define a gluon model trainable by SGD, we inherit the
-    parent class `GluonEstimator` that handles most of the logic for fitting a
-    neural-network.
-
-    We thus only have to define:
-
-    1. How the data is transformed before being fed to our model::
-
-        def create_transformation(self) -> Transformation
-
-    2. How the training happens::
-
-        def create_training_network(self) -> HybridBlock
-
-    3. how the predictions can be made for a batch given a trained network::
-
-        def create_predictor(
-             self,
-             transformation: Transformation,
-             trained_net: HybridBlock,
-        ) -> Predictor
-
-
-    Parameters
-    ----------
-    prediction_length
-        Length of the prediction horizon
-    trainer
-        Trainer object to be used (default: Trainer())
-    num_hidden_dimensions
-        Number of hidden nodes in each layer (default: [40, 40])
-    context_length
-        Number of time units that condition the predictions
-        (default: None, in which case context_length = prediction_length)
-    distr_output
-        Distribution to fit (default: StudentTOutput())
-    batch_normalization
-        Whether to use batch normalization (default: False)
-    mean_scaling
-        Scale the network input by the data mean and the network output by
-        its inverse (default: True)
-    num_parallel_samples
-        Number of evaluation samples per time series to increase parallelism
-        during inference. This is a model optimization that does not affect the
-        accuracy (default: 100)
-    train_sampler
-        Controls the sampling of windows during training.
-    validation_sampler
-        Controls the sampling of windows during validation.
-    batch_size
-        The size of the batches to be used training and prediction.
-    """
-
-    # The validated() decorator makes sure that parameters are checked by
-    # Pydantic and allows to serialize/print models. Note that all parameters
-    # have defaults except for `prediction_length`. which is
-    # recommended in GluonTS to allow to compare models easily.
     @validated()
     def __init__(
         self,
-        n_features: int,  ## my code here
+        mean_layer,  ## my code here
+        distr_output: DistributionOutput,  ## my code here
         prediction_length: int,
         sampling: bool = True,
         trainer: Trainer = Trainer(),
         num_hidden_dimensions: Optional[List[int]] = None,
         context_length: Optional[int] = None,
-        distr_output: DistributionOutput = StudentTOutput(),
         imputation_method: Optional[MissingValueImputation] = None,
         batch_normalization: bool = False,
         mean_scaling: bool = False,
@@ -153,7 +90,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             num_parallel_samples > 0
         ), "The value of `num_parallel_samples` should be > 0"
 
-        self.n_features = n_features  ## my code here
+        self.mean_layer = mean_layer  ## my code here
 
         self.num_hidden_dimensions = (
             num_hidden_dimensions
@@ -200,14 +137,16 @@ class SimpleFeedForwardEstimator(GluonEstimator):
                 FieldName.INFO,
                 FieldName.START,
                 FieldName.TARGET,
+                FieldName.FEAT_DYNAMIC_REAL,
             ],
             allow_missing=True,
-        ) + AddObservedValuesIndicator(
+        )
+        """+ AddObservedValuesIndicator(
             target_field=FieldName.TARGET,
-            output_field=FieldName.OBSERVED_VALUES,
+            output_field=FieldName.OBSERVED_VALUES,    
             dtype=self.dtype,
             imputation_method=self.imputation_method,
-        )
+        )"""
 
     def _create_instance_splitter(self, mode: str):
         assert mode in ["training", "validation", "test"]
@@ -226,7 +165,10 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             instance_sampler=instance_sampler,
             past_length=self.context_length,
             future_length=self.prediction_length,
-            time_series_fields=[FieldName.OBSERVED_VALUES],
+            time_series_fields=[
+                FieldName.FEAT_DYNAMIC_REAL,  ## my code here
+                # FieldName.OBSERVED_VALUES,
+            ],
         )
 
     def create_training_data_loader(
@@ -264,7 +206,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     # instance for analysis, see DeepARTrainingNetwork for an example.
     def create_training_network(self) -> HybridBlock:
         return SimpleFeedForwardTrainingNetwork(
-            n_features=self.n_features,  ## my code here
+            mean_layer=self.mean_layer,  ## my code here
             num_hidden_dimensions=self.num_hidden_dimensions,
             prediction_length=self.prediction_length,
             context_length=self.context_length,
@@ -280,7 +222,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
 
         if self.sampling is True:
             prediction_network = SimpleFeedForwardSamplingNetwork(
-                n_features=self.n_features,  ## my code here
+                mean_layer=self.mean_layer,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,
@@ -301,7 +243,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
 
         else:
             prediction_network = SimpleFeedForwardDistributionNetwork(
-                n_features=self.n_features,  ## my code here
+                mean_layer=self.mean_layer,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,
