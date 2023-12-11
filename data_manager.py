@@ -255,13 +255,9 @@ class GluonTSDataManager:
     def _split_data_for_dl_layer(
         self, n_samples: int, phase: str, seed: int
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        (
-            dataset,
-            means,
-            vars,
-            start_indices,
-            n_samples_per_ts,
-        ) = self._prepare_for_sampling_ts(n_samples, phase, seed)
+        (dataset, means, vars, start_indices, _) = self._prepare_for_sampling_ts(
+            n_samples, phase, seed
+        )
 
         # init results
         shape_x = (n_samples, self.context_length, self.n_features)
@@ -325,9 +321,6 @@ class GluonTSDataManager:
         test_x, test_mean, test_var, test_y = self._split_data_for_dl_layer(
             n_test_samples, "test", seed
         )
-        # x: (n_samples, context_length, n_features)
-        # mean: (n_samples, context_length * n_features)
-        # y: (n_samples, prediction_length, n_features)
 
         train_dataset = TensorDataset(
             from_numpy(train_x),

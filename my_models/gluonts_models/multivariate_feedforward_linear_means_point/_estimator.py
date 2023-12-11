@@ -47,8 +47,7 @@ from gluonts.transform.feature import (
 )
 
 from ._network import (
-    SimpleFeedForwardDistributionNetwork,
-    SimpleFeedForwardSamplingNetwork,
+    SimpleFeedForwardPredictionNetwork,
     SimpleFeedForwardTrainingNetwork,
 )
 
@@ -206,7 +205,6 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             num_hidden_dimensions=self.num_hidden_dimensions,
             prediction_length=self.prediction_length,
             context_length=self.context_length,
-            distr_output=self.distr_output,
             batch_normalization=self.batch_normalization,
             mean_scaling=self.mean_scaling,
         )
@@ -216,44 +214,21 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     def create_predictor(self, transformation, trained_network):
         prediction_splitter = self._create_instance_splitter("test")
 
-        if self.sampling is True:
-            prediction_network = SimpleFeedForwardSamplingNetwork(
-                mean_layer=self.mean_layer,  ## my code here
-                num_hidden_dimensions=self.num_hidden_dimensions,
-                prediction_length=self.prediction_length,
-                context_length=self.context_length,
-                distr_output=self.distr_output,
-                batch_normalization=self.batch_normalization,
-                mean_scaling=self.mean_scaling,
-                params=trained_network.collect_params(),
-                num_parallel_samples=self.num_parallel_samples,
-            )
+        prediction_network = SimpleFeedForwardPredictionNetwork(
+            mean_layer=self.mean_layer,  ## my code here
+            n_features=self.n_features,  ## my code here
+            num_hidden_dimensions=self.num_hidden_dimensions,
+            prediction_length=self.prediction_length,
+            context_length=self.context_length,
+            batch_normalization=self.batch_normalization,
+            mean_scaling=self.mean_scaling,
+            params=trained_network.collect_params(),
+        )
 
-            return RepresentableBlockPredictor(
-                input_transform=transformation + prediction_splitter,
-                prediction_net=prediction_network,
-                batch_size=self.batch_size,
-                prediction_length=self.prediction_length,
-                ctx=self.trainer.ctx,
-            )
-
-        else:
-            prediction_network = SimpleFeedForwardDistributionNetwork(
-                mean_layer=self.mean_layer,  ## my code here
-                num_hidden_dimensions=self.num_hidden_dimensions,
-                prediction_length=self.prediction_length,
-                context_length=self.context_length,
-                distr_output=self.distr_output,
-                batch_normalization=self.batch_normalization,
-                mean_scaling=self.mean_scaling,
-                params=trained_network.collect_params(),
-                num_parallel_samples=self.num_parallel_samples,
-            )
-            return RepresentableBlockPredictor(
-                input_transform=transformation + prediction_splitter,
-                prediction_net=prediction_network,
-                batch_size=self.batch_size,
-                forecast_generator=DistributionForecastGenerator(self.distr_output),
-                prediction_length=self.prediction_length,
-                ctx=self.trainer.ctx,
-            )
+        return RepresentableBlockPredictor(
+            input_transform=transformation + prediction_splitter,
+            prediction_net=prediction_network,
+            batch_size=self.batch_size,
+            prediction_length=self.prediction_length,
+            ctx=self.trainer.ctx,
+        )

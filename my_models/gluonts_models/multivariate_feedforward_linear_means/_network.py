@@ -35,6 +35,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         mean_scaling: bool,
         distr_output: DistributionOutput,
         mean_layer,  ## my code here
+        n_features,  ## my code here
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -45,6 +46,8 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         self.batch_normalization = batch_normalization
         self.mean_scaling = mean_scaling
         self.distr_output = distr_output
+
+        self.n_features = n_features  ## my code here
 
         with self.name_scope():
             self.distr_args_proj = self.distr_output.get_args_proj()
@@ -68,8 +71,8 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         self, F, past_target: Tensor, past_feat_dynamic_real: Tensor
     ) -> Tuple[Tensor, Tensor, Tensor]:
         """
-        past_target (batch, context_length)
-        past_feat_dynamic_real (batch, context_length, n_features=2)    # contains mean and vars
+        past_target (batch, context_length, n_features)
+        past_feat_dynamic_real (batch, context_length, n_features*2)    # contains mean and vars
         scale_target as past_target
         target_scale (batch)
         mlp_outputs (batch, pred_length, last_net_hidden_dim)
@@ -78,15 +81,19 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         loc (batch, 1)
         pred_means (batch, pred_length)
         """
-        means = past_feat_dynamic_real.slice_axis(
-            axis=2, begin=0, end=1
-        ).squeeze()  # type:ignore
-        vars = past_feat_dynamic_real.slice_axis(
-            axis=2, begin=1, end=2
-        ).squeeze()  # type:ignore
+
+        means = past_feat_dynamic_real.slice(
+            begin=(None, None, 0 * self.n_features),
+            end=(None, None, 1 * self.n_features),
+        )
+        vars = past_feat_dynamic_real.slice(
+            begin=(None, None, 1 * self.n_features),
+            end=(None, None, 2 * self.n_features),
+        )
 
         # normalize past_target
-        past_target = (past_target - means) / (vars + 1e-8)
+        past_target = (past_target - means) / (vars + 1e-8).sqrt()
+        past_target = past_target.flatten()
 
         scaled_target, target_scale = self.scaler(
             past_target,
@@ -100,7 +107,8 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         loc = F.zeros_like(scale)
 
         """My code here"""
-        pred_means = self.mean_layer(means)
+        pred_means = self.mean_layer(means.flatten())
+        pred_means = pred_means.reshape((-1, self.prediction_length, self.n_features))
         # we add mean layer preds to the means predicted by the output distribution
         # i.e. the 0th element of distr_args
         distr_args = tuple(

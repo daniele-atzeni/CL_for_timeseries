@@ -157,14 +157,6 @@ def run_gas_experiment(
     data_manager.set_data_from_normalizer(
         train_means, train_vars, test_means, test_vars
     )
-    (
-        mean_layer_train_x,
-        mean_layer_train_y,
-        mean_layer_test_x,
-        mean_layer_test_y,
-    ) = data_manager.get_dataset_for_linear_mean_layer(
-        n_training_samples, n_test_samples
-    )
 
     mean_layer_folders = init_folders_for_mean_layer(root_folder)
 

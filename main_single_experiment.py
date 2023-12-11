@@ -7,7 +7,7 @@ if __name__ == "__main__":
     DATASET_TYPE = "gluonts"  # "synthetic"
     DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
     DATASET_PARAMS = real_world_data_params  # synthetic_generation_params
-    DATASET_PARAMS["multivariate"] = False  # or True
+    DATASET_PARAMS["multivariate"] = True  # or False
 
     NORMALIZER_NAME = "gas_t_student"  # "gas_simple_gaussian", "gas_complex_gaussian"
     NORMALIZER_INITIAL_GUESSES = gas_t_stud_initial_guesses  # gas_{name}_*

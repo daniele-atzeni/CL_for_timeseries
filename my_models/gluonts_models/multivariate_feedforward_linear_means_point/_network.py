@@ -33,8 +33,8 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         context_length: int,
         batch_normalization: bool,
         mean_scaling: bool,
-        distr_output: DistributionOutput,
-        mean_layer,  ## my code here
+        mean_layer,
+        n_features,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -44,20 +44,20 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         self.context_length = context_length
         self.batch_normalization = batch_normalization
         self.mean_scaling = mean_scaling
-        self.distr_output = distr_output
+
+        self.n_features = n_features  ## my code here
 
         with self.name_scope():
-            self.distr_args_proj = self.distr_output.get_args_proj()
             self.mlp = mx.gluon.nn.HybridSequential()
             dims = self.num_hidden_dimensions
-            for layer_no, units in enumerate(dims[:-1]):
+            for layer_no, units in enumerate(dims):
                 self.mlp.add(mx.gluon.nn.Dense(units=units, activation="relu"))
                 if self.batch_normalization:
                     self.mlp.add(mx.gluon.nn.BatchNorm())
-            self.mlp.add(mx.gluon.nn.Dense(units=prediction_length * dims[-1]))
+            self.mlp.add(mx.gluon.nn.Dense(units=prediction_length * self.n_features))
             self.mlp.add(
                 mx.gluon.nn.HybridLambda(
-                    lambda F, o: F.reshape(o, (-1, prediction_length, dims[-1]))
+                    lambda F, o: F.reshape(o, (-1, prediction_length, self.n_features))
                 )
             )
             self.scaler = MeanScaler() if mean_scaling else NOPScaler()
@@ -66,10 +66,10 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
 
     def get_distr_args(
         self, F, past_target: Tensor, past_feat_dynamic_real: Tensor
-    ) -> Tuple[Tensor, Tensor, Tensor]:
+    ) -> Tensor:
         """
-        past_target (batch, context_length)
-        past_feat_dynamic_real (batch, context_length, n_features=2)    # contains mean and vars
+        past_target (batch, context_length, n_features)
+        past_feat_dynamic_real (batch, context_length, n_features*2)    # contains mean and vars
         scale_target as past_target
         target_scale (batch)
         mlp_outputs (batch, pred_length, last_net_hidden_dim)
@@ -78,15 +78,19 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         loc (batch, 1)
         pred_means (batch, pred_length)
         """
-        means = past_feat_dynamic_real.slice_axis(
-            axis=2, begin=0, end=1
-        ).squeeze()  # type:ignore
-        vars = past_feat_dynamic_real.slice_axis(
-            axis=2, begin=1, end=2
-        ).squeeze()  # type:ignore
+
+        means = past_feat_dynamic_real.slice(
+            begin=(None, None, 0 * self.n_features),
+            end=(None, None, 1 * self.n_features),
+        )
+        vars = past_feat_dynamic_real.slice(
+            begin=(None, None, 1 * self.n_features),
+            end=(None, None, 2 * self.n_features),
+        )
 
         # normalize past_target
-        past_target = (past_target - means) / (vars + 1e-8).sqrt()
+        past_target = (past_target - means) / (vars + 1e-8).sqrt()  # type: ignore MXNet typing issue
+        past_target = past_target.flatten()
 
         scaled_target, target_scale = self.scaler(
             past_target,
@@ -94,21 +98,10 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         )
         mlp_outputs = self.mlp(scaled_target)
 
-        distr_args = self.distr_args_proj(mlp_outputs)
+        pred_means = self.mean_layer(means.flatten())  # type: ignore MXNet typing issue
+        pred_means = pred_means.reshape((-1, self.prediction_length, self.n_features))
 
-        scale = target_scale.expand_dims(axis=1)
-        loc = F.zeros_like(scale)
-
-        """My code here"""
-        pred_means = self.mean_layer(means)
-        # we add mean layer preds to the means predicted by the output distribution
-        # i.e. the 0th element of distr_args
-        distr_args = tuple(
-            [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
-        )
-        """end"""
-
-        return distr_args, loc, scale  # type:ignore I know its a tuple of Tensors
+        return mlp_outputs + pred_means
 
 
 class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
@@ -119,50 +112,20 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
         future_target: Tensor,
         past_feat_dynamic_real: Tensor,
     ) -> Tensor:
-        distr_args, loc, scale = self.get_distr_args(
-            F, past_target, past_feat_dynamic_real
-        )
-        distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
+        prediction = self.get_distr_args(F, past_target, past_feat_dynamic_real)
         # (batch_size, prediction_length, target_dim)
-        loss = distr.loss(future_target)
+        loss = (prediction - future_target).abs().mean(axis=-1).mean(axis=-1)  # type: ignore MXNet typing issue
 
-        return weighted_average(F=F, x=loss, weights=F.ones_like(loss), axis=1)
+        return loss
 
 
-class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
-    @validated()
-    def __init__(self, num_parallel_samples: int = 100, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.num_parallel_samples = num_parallel_samples
-
+class SimpleFeedForwardPredictionNetwork(SimpleFeedForwardNetworkBase):
     def hybrid_forward(
         self,
         F,
         past_target: Tensor,
         past_feat_dynamic_real: Tensor,
     ) -> Tensor:
-        distr_args, loc, scale = self.get_distr_args(
-            F, past_target, past_feat_dynamic_real
-        )
-        distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
+        out = self.get_distr_args(F, past_target, past_feat_dynamic_real)
 
-        # (num_samples, batch_size, prediction_length)
-        samples = distr.sample(self.num_parallel_samples)
-
-        # (batch_size, num_samples, prediction_length)
-        return samples.swapaxes(0, 1)  # type:ignore not my code
-
-
-class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
-    @validated()
-    def __init__(self, num_parallel_samples: int = 100, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.num_parallel_samples = num_parallel_samples
-
-    def hybrid_forward(
-        self, F, past_target: Tensor, past_feat_dynamic_real: Tensor
-    ) -> Tensor:
-        distr_args, loc, scale = self.get_distr_args(
-            F, past_target, past_feat_dynamic_real
-        )
-        return distr_args, loc, scale  # type:ignore not my code
+        return out

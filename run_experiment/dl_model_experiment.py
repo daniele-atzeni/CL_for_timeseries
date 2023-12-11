@@ -10,7 +10,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from my_models.gluonts_models.feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts,
 )
-from my_models.gluonts_models.multivariate_feedforward_linear_means._estimator import (
+from my_models.gluonts_models.multivariate_feedforward_linear_means_point._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate,
 )
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
@@ -52,7 +52,7 @@ def experiment_gluonts(
     mean_layer = mx.gluon.nn.HybridSequential()
     mean_layer.add(
         mx.gluon.nn.Dense(
-            units=prediction_length,
+            units=prediction_length * n_features,
             weight_initializer=mx.init.Constant(weights),
             bias_initializer=mx.init.Constant(bias),  # type: ignore # bias is a numpy array, don't know the reasons for this typing error
         )
@@ -60,7 +60,7 @@ def experiment_gluonts(
     mean_layer.add(
         mx.gluon.nn.HybridLambda(
             lambda F, o: F.reshape(
-                o, (-1, prediction_length)
+                o, (-1, prediction_length * n_features)
             )  # no need for that but just to be sure
         )
     )
@@ -84,6 +84,7 @@ def experiment_gluonts(
         else:
             estimator = FF_gluonts_multivariate(
                 mean_layer,
+                n_features,
                 MultivariateGaussianOutput(dim=n_features),
                 prediction_length=prediction_length,
                 context_length=context_length,
