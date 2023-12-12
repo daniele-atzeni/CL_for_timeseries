@@ -1,5 +1,9 @@
 from gluonts.mx import Trainer
-from gluonts.evaluation import make_evaluation_predictions, Evaluator
+from gluonts.evaluation import (
+    make_evaluation_predictions,
+    Evaluator,
+    MultivariateEvaluator,
+)
 from gluonts.dataset import DataEntry
 from gluonts.mx.distribution import StudentTOutput, MultivariateGaussianOutput
 
@@ -111,9 +115,13 @@ def experiment_gluonts(
     # process results
     forecasts = list(forecast_it)
     tss = list(ts_it)
-    evaluator = Evaluator(**evaluator_parameters)
-    agg_metrics, item_metrics = evaluator(tss, forecasts)
-    print(json.dumps(agg_metrics, indent=4))
+    if n_features == 1:
+        evaluator = Evaluator(**evaluator_parameters)
+    else:
+        evaluator = MultivariateEvaluator(**evaluator_parameters)
+
+    agg_metrics, item_metrics = evaluator(tss, forecasts)  # type: ignore # we are sure that tss is a list of DataFrame in multivariate case
+    # print(json.dumps(agg_metrics, indent=4))
     print(item_metrics.head())
 
     # SAVE EVERYTHING

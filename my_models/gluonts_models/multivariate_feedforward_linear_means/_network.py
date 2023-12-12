@@ -112,7 +112,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
             [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
         )
 
-        return distr_args, loc, scale
+        return distr_args, loc, scale  # type:ignore not my code
 
 
 class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
@@ -151,10 +151,8 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
 
         # (num_samples, batch_size, prediction_length, n_features)
         samples = distr.sample(self.num_parallel_samples)
-        # (num_samples, batch_size, prediction_length, n_features)
-        samples = samples.swapaxes(2, 3)
 
-        # (batch_size, num_samples, n_features, prediction_length)
+        # (batch_size, num_samples, prediction_length, n_features)
         return samples.swapaxes(0, 1)  # type:ignore not my code
 
 
