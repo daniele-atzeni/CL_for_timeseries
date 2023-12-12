@@ -61,7 +61,7 @@ linear_mean_layer_params = {}
 # gluonts
 gluonts_multivariate_feedforward_params = {
     "main_model": {
-        "num_hidden_dimensions": [128, 17],
+        "num_hidden_dimensions": [512, 256],
     },
     "training": {
         "epochs": 5,

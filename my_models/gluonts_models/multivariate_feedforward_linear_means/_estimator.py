@@ -219,6 +219,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         if self.sampling is True:
             prediction_network = SimpleFeedForwardSamplingNetwork(
                 mean_layer=self.mean_layer,  ## my code here
+                n_features=self.n_features,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,
@@ -240,6 +241,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         else:
             prediction_network = SimpleFeedForwardDistributionNetwork(
                 mean_layer=self.mean_layer,  ## my code here
+                n_features=self.n_features,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,

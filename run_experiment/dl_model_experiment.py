@@ -10,7 +10,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from my_models.gluonts_models.feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts,
 )
-from my_models.gluonts_models.multivariate_feedforward_linear_means_point._estimator import (
+from my_models.gluonts_models.multivariate_feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate,
 )
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch

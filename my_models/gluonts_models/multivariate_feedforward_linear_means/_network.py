@@ -73,12 +73,8 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         """
         past_target (batch, context_length, n_features)
         past_feat_dynamic_real (batch, context_length, n_features*2)    # contains mean and vars
-        scale_target as past_target
-        target_scale (batch)
         mlp_outputs (batch, pred_length, last_net_hidden_dim)
         distr_args tuple (3 * (batch, pred_length))
-        scale (batch, 1)
-        loc (batch, 1)
         pred_means (batch, pred_length)
         """
 
@@ -92,31 +88,31 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         )
 
         # normalize past_target
-        past_target = (past_target - means) / (vars + 1e-8).sqrt()
+        past_target = (past_target - means) / (
+            vars.sqrt() + 1e-8  # type:ignore MXNet issue
+        )
         past_target = past_target.flatten()
 
-        scaled_target, target_scale = self.scaler(
-            past_target,
-            F.ones_like(past_target),
-        )
-        mlp_outputs = self.mlp(scaled_target)
+        mlp_outputs = self.mlp(past_target)
 
         distr_args = self.distr_args_proj(mlp_outputs)
+        # with multivariate gaussian:
+        # mu (batch, pred_length, n_feat), L (batch, pred_length, n_feat, n_feat)
 
-        scale = target_scale.expand_dims(axis=1)
-        loc = F.zeros_like(scale)
+        scale = None
+        loc = None
+        # Setting this to None avoids the call to AffineTransformedDistribution
+        # which causes problems in the multivariate case
 
-        """My code here"""
-        pred_means = self.mean_layer(means.flatten())
+        pred_means = self.mean_layer(means.flatten())  # type:ignore MXNet issue
         pred_means = pred_means.reshape((-1, self.prediction_length, self.n_features))
         # we add mean layer preds to the means predicted by the output distribution
         # i.e. the 0th element of distr_args
         distr_args = tuple(
             [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
         )
-        """end"""
 
-        return distr_args, loc, scale  # type:ignore I know its a tuple of Tensors
+        return distr_args, loc, scale
 
 
 class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
@@ -131,7 +127,6 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
             F, past_target, past_feat_dynamic_real
         )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
-        # (batch_size, prediction_length, target_dim)
         loss = distr.loss(future_target)
 
         return weighted_average(F=F, x=loss, weights=F.ones_like(loss), axis=1)
@@ -154,10 +149,12 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
         )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
 
-        # (num_samples, batch_size, prediction_length)
+        # (num_samples, batch_size, prediction_length, n_features)
         samples = distr.sample(self.num_parallel_samples)
+        # (num_samples, batch_size, prediction_length, n_features)
+        samples = samples.swapaxes(2, 3)
 
-        # (batch_size, num_samples, prediction_length)
+        # (batch_size, num_samples, n_features, prediction_length)
         return samples.swapaxes(0, 1)  # type:ignore not my code
 
 

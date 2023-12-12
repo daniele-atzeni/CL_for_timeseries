@@ -86,7 +86,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         ).squeeze()  # type:ignore
 
         # normalize past_target
-        past_target = (past_target - means) / (vars + 1e-8).sqrt()
+        past_target = (past_target - means) / (vars.sqrt() + 1e-8)
 
         scaled_target, target_scale = self.scaler(
             past_target,
