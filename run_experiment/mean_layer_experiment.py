@@ -2,16 +2,17 @@ import os
 import pickle
 import json
 
-from sklearn import linear_model
+from sklearn.linear_model import LinearRegression
 import numpy as np
+
+from normalizer import GASNormalizer
 
 
 def experiment_mean_layer_linear(
     dataset: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
-    mean_layer_name: str,
     mean_layer_params: dict,
     folders: dict,
-) -> None:
+) -> LinearRegression:
     (
         mean_layer_train_x,
         mean_layer_train_y,
@@ -19,10 +20,7 @@ def experiment_mean_layer_linear(
         mean_layer_test_y,
     ) = dataset
     # REGRESSOR INITIALIZATION
-    if mean_layer_name == "linear":
-        mean_layer = linear_model.LinearRegression(**mean_layer_params)
-    else:
-        raise ValueError(f"Unknown regressor class: {mean_layer_name}")
+    mean_layer = LinearRegression(**mean_layer_params)
 
     # FIT THE REGRESSOR AND EVALUATE IT
     print("Fitting the mean linear layer...")
@@ -43,14 +41,16 @@ def experiment_mean_layer_linear(
         pickle.dump(mean_layer, f)
     # save mean predictions
     print("Done.")
+
+    return mean_layer
 
 
 def experiment_mean_layer_gas(
     dataset: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
-    mean_layer_name: str,
+    normalizer: GASNormalizer,
     mean_layer_params: dict,
     folders: dict,
-) -> None:
+) -> GASNormalizer:
     (
         mean_layer_train_x,
         mean_layer_train_y,
@@ -58,10 +58,7 @@ def experiment_mean_layer_gas(
         mean_layer_test_y,
     ) = dataset
     # REGRESSOR INITIALIZATION
-    if mean_layer_name == "linear":
-        mean_layer = linear_model.LinearRegression(**mean_layer_params)
-    else:
-        raise ValueError(f"Unknown regressor class: {mean_layer_name}")
+    mean_layer = normalizer
 
     # FIT THE REGRESSOR AND EVALUATE IT
     print("Fitting the mean linear layer...")
@@ -82,3 +79,5 @@ def experiment_mean_layer_gas(
         pickle.dump(mean_layer, f)
     # save mean predictions
     print("Done.")
+
+    return normalizer

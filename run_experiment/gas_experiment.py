@@ -136,7 +136,7 @@ def run_gas_experiment(
     normalizer_folders = init_folders_for_normalizer(root_folder)
 
     # this function computes and saves results and parameters from the normalization
-    experiment_normalizer(
+    normalizer = experiment_normalizer(
         normalizer_name,
         normalizer_params,
         data_manager.get_dataset_for_normalizer(),
@@ -169,20 +169,19 @@ def run_gas_experiment(
 
     # this function computes and saves results and parameters from the mean layer
     if mean_layer_name == "linear":
-        experiment_mean_layer_linear(
+        mean_layer = experiment_mean_layer_linear(
             data_manager.get_dataset_for_linear_mean_layer(
                 n_training_samples, n_test_samples
             ),
-            mean_layer_name,
             mean_layer_params,
             mean_layer_folders,
         )
     elif mean_layer_name == "gas":
-        experiment_mean_layer_gas(
+        mean_layer = experiment_mean_layer_gas(
             data_manager.get_dataset_for_linear_mean_layer(
                 n_training_samples, n_test_samples
             ),
-            mean_layer_name,
+            normalizer,
             mean_layer_params,
             mean_layer_folders,
         )
@@ -195,10 +194,6 @@ def run_gas_experiment(
     # - trained torch model
     # - torch model results
 
-    # we have to load the regressor for the next step
-    with open(mean_layer_folders["mean_layer_filename"], "rb") as f:
-        regr = pickle.load(f)
-
     dl_folders = init_folders_for_dl(root_folder)
 
     if dl_model_library == "gluonts":
@@ -207,8 +202,7 @@ def run_gas_experiment(
             data_manager.context_length,
             data_manager.prediction_length,
             data_manager.get_gluon_dataset_for_dl_layer(),
-            regr.coef_,  # regressor weights
-            regr.intercept_,  # regressor bias
+            mean_layer,
             dl_model_name,
             dl_model_params,
             dl_folders,
@@ -221,8 +215,7 @@ def run_gas_experiment(
             data_manager.get_torch_dataset_for_dl_layer(
                 n_training_samples, n_test_samples
             ),
-            regr.coef_,  # regressor weights
-            regr.intercept_,  # regressor bias
+            mean_layer,
             dl_model_name,
             dl_model_params,
             dl_folders,
@@ -235,8 +228,7 @@ def run_gas_experiment(
         data_manager.context_length,
         data_manager.prediction_length,
         data_manager.get_gluon_dataset_for_dl_layer(),
-        regr.coef_,  # regressor weights
-        regr.intercept_,  # regressor bias
+        mean_layer,
         dl_model_name,
         dl_model_params,
         dl_folders,

@@ -63,19 +63,21 @@ class GluonTSDataManager:
             self.prediction_length = gluonts_dataset.metadata.prediction_length
             self.context_length = 2 * self.prediction_length
             self.freq = gluonts_dataset.metadata.freq
+            self.seasonality = None
         else:
             context_length, external_forecast_horizon = NAME_TO_CONTEXT_AND_PRED[
                 self.name
             ]
-            train_dataset, test_dataset, freq, _ = get_dataset_from_file(
+            train_dataset, test_dataset, freq, seasonality = get_dataset_from_file(
                 self.name, external_forecast_horizon, context_length
             )
             self.prediction_length = external_forecast_horizon
             self.context_length = context_length
             self.freq = freq
+            self.seasonality = seasonality
 
-        train_dataset = self._shrink_dataset(train_dataset)
-        test_dataset = self._shrink_dataset(test_dataset)
+        train_dataset = self._scale_dataset(train_dataset)
+        test_dataset = self._scale_dataset(test_dataset)
 
         self.n_features = len(list(train_dataset)) if self.multivariate else 1
         assert test_dataset is not None
@@ -91,7 +93,7 @@ class GluonTSDataManager:
             self.train_dataset = train_dataset
             self.test_dataset = test_dataset
 
-    def _shrink_dataset(self, dataset) -> list[DataEntry]:
+    def _scale_dataset(self, dataset) -> list[DataEntry]:
         """
         This method shrinks the dataset by dividing all the time series by the
         mean of the first self.context_length points. Here, all time series are

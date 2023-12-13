@@ -140,6 +140,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
                 FieldName.START,
                 FieldName.TARGET,
                 FieldName.FEAT_DYNAMIC_REAL,
+                FieldName.FEAT_STATIC_REAL,
             ],
             allow_missing=True,
         )

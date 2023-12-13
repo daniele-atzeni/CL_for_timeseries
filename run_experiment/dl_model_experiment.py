@@ -19,11 +19,14 @@ from my_models.gluonts_models.multivariate_feedforward_linear_means._estimator i
 )
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
 
+from normalizer import GASNormalizer
+from sklearn.linear_model import LinearRegression
+
+
 import os
 import pickle
 import json
 
-import numpy as np
 from tqdm import tqdm
 
 
@@ -32,8 +35,7 @@ def experiment_gluonts(
     context_length: int,
     prediction_length: int,
     dataset: tuple[list[DataEntry], list[DataEntry]],
-    weights: np.ndarray,
-    bias: np.ndarray,
+    trained_mean_layer: LinearRegression | GASNormalizer,
     dl_model_name: str,
     dl_model_params: dict,
     folders: dict,
@@ -53,21 +55,29 @@ def experiment_gluonts(
     # ESTIMATOR INITIALIZATION
     # we have to initialize the mean linear layer first
     print("Initializing the mean linear layer...")
-    mean_layer = mx.gluon.nn.HybridSequential()
-    mean_layer.add(
-        mx.gluon.nn.Dense(
-            units=prediction_length * n_features,
-            weight_initializer=mx.init.Constant(weights),
-            bias_initializer=mx.init.Constant(bias),  # type: ignore # bias is a numpy array, don't know the reasons for this typing error
+    if isinstance(trained_mean_layer, LinearRegression):
+        mean_layer = mx.gluon.nn.HybridSequential()
+        mean_layer.add(
+            mx.gluon.nn.Dense(
+                units=prediction_length * n_features,
+                weight_initializer=mx.init.Constant(trained_mean_layer.coef_),
+                bias_initializer=mx.init.Constant(trained_mean_layer.intercept_),  # type: ignore # bias is a numpy array, don't know the reasons for this typing error
+            )
         )
-    )
-    mean_layer.add(
-        mx.gluon.nn.HybridLambda(
-            lambda F, o: F.reshape(
-                o, (-1, prediction_length * n_features)
-            )  # no need for that but just to be sure
+        mean_layer.add(
+            mx.gluon.nn.HybridLambda(
+                lambda F, o: F.reshape(
+                    o, (-1, prediction_length * n_features)
+                )  # no need for that but just to be sure
+            )
         )
-    )
+    elif isinstance(trained_mean_layer, GASNormalizer):
+        mean_layer = trained_mean_layer
+    else:
+        raise ValueError(
+            f"Unknown mean layer type: {type(trained_mean_layer)} {trained_mean_layer}"
+        )
+
     # freeze the parameters
     for param in mean_layer.collect_params().values():
         param.grad_req = "null"
@@ -142,8 +152,7 @@ def experiment_torch(
     context_length: int,
     prediction_length: int,
     datasets: tuple[TensorDataset, TensorDataset],
-    weights: np.ndarray,
-    bias: np.ndarray,
+    trained_mean_layer: LinearRegression | GASNormalizer,
     dl_model_name: str,
     dl_model_params: dict,
     folders: dict,
@@ -167,15 +176,20 @@ def experiment_torch(
     # MODEL INITIALIZATION
     # we have to initialize the mean linear layer first
     print("Initializing the mean linear layer...")
-    mean_layer = torch.nn.Linear(
-        context_length * n_features, prediction_length * n_features
-    )
-    mean_layer.weight.data = torch.from_numpy(weights).float()
-    mean_layer.bias.data = torch.from_numpy(bias).float()
-    # freeze the parameters
-    for param in mean_layer.parameters():
-        param.requires_grad = False
-    print("Done.")
+    if isinstance(trained_mean_layer, LinearRegression):
+        mean_layer = torch.nn.Linear(
+            context_length * n_features, prediction_length * n_features
+        )
+        mean_layer.weight.data = torch.from_numpy(trained_mean_layer.coef_).float()
+        mean_layer.bias.data = torch.from_numpy(trained_mean_layer.intercept_).float()
+        # freeze the parameters
+        for param in mean_layer.parameters():
+            param.requires_grad = False
+        print("Done.")
+    else:
+        raise ValueError(
+            f"Unknown mean layer type: {type(trained_mean_layer)} {trained_mean_layer}"
+        )
 
     # model initialization
     print("Initializing the model...")
