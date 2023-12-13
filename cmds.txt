@@ -1,0 +1,62 @@
+conda create -n clts python=3.10
+
+pip install numpy==1.23.5 pandas==1.5.3 datasets scikit-learn gluonts ujson evaluate optuna mxnet #-cu112
+
+# check if scripts still running
+ps u or ps aux | grep run_nonorm
+# kill if running
+pkill -f 'run_nonorm'
+
+
+
+# No norm ffn, 20 trials
+
+nohup python run_nonorm_w_tuning.py --dataset_name='nn5_weekly_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=8 --context_length=65 --ctx='cpu' --n_trials=20 > nohup_out/nn5_weekly_dataset.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='us_births_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/us_births_dataset.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='solar_10_minutes_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=1008 --context_length=50 --ctx='cpu' --n_trials=20 > nohup_out/solar_10_minutes_dataset.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='weather_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/weather_datase.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='sunspot_dataset_without_missing_values' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/sunspot_dataset_without_missing_values.out 2>&1 &
+
+# above runs them concurrently which is slower than sequentially (3its/s vs 140its/s), this is for sequentially
+
+#!/bin/bash
+nohup python run_nonorm_w_tuning.py --dataset_name='nn5_weekly_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=8 --context_length=65 --ctx='cpu' --n_trials=20 > nohup_out/nn5_weekly_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='us_births_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/us_births_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='solar_10_minutes_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=1008 --context_length=50 --ctx='cpu' --n_trials=20 > nohup_out/solar_10_minutes_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='weather_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/weather_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='sunspot_dataset_without_missing_values' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/sunspot_dataset_without_missing_values.out 2>&1 &
+
+# in nano run.sh and then
+nohup bash run.sh &
+
+
+# No norm transformer, 20 trials
+
+#!/bin/bash
+nohup python run_nonorm_w_tuning.py --dataset_name='nn5_weekly_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='transformer' --prediction_length=8 --context_length=65 --ctx='cpu' --n_trials=20 > nohup_out/nn5_weekly_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='us_births_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='transformer' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/us_births_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='solar_10_minutes_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='transformer' --prediction_length=1008 --context_length=50 --ctx='cpu' --n_trials=20 > nohup_out/solar_10_minutes_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='weather_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='transformer' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/weather_dataset.out 2>&1 &
+wait $!
+nohup python run_nonorm_w_tuning.py --dataset_name='sunspot_dataset_without_missing_values' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='transformer' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/sunspot_dataset_without_missing_values.out 2>&1 &
+
+
+# Gas norm FFN, 20 trials
+
+#!/bin/bash
+nohup python run_norm_w_tuning.py --dataset_name='nn5_weekly_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=8 --context_length=65 --ctx='cpu' --n_trials=20 > nohup_out/nn5_weekly_dataset.out 2>&1 &
+wait $!
+nohup python run_norm_w_tuning.py --dataset_name='us_births_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/us_births_dataset.out 2>&1 &
+wait $!
+nohup python run_norm_w_tuning.py --dataset_name='solar_10_minutes_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=1008 --context_length=50 --ctx='cpu' --n_trials=20 > nohup_out/solar_10_minutes_dataset.out 2>&1 &
+wait $!
+nohup python run_norm_w_tuning.py --dataset_name='weather_dataset' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/weather_dataset.out 2>&1 &
+wait $!
+nohup python run_norm_w_tuning.py --dataset_name='sunspot_dataset_without_missing_values' --root_folder='/data/r.ramjattan/CL_for_timeseries' --model_choice='ffn' --prediction_length=30 --context_length=9 --ctx='cpu' --n_trials=20 > nohup_out/sunspot_dataset_without_missing_values.out 2>&1 &

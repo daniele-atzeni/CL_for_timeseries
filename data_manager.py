@@ -4,6 +4,7 @@ from gluonts.dataset import DataEntry
 from gluonts.dataset.repository import get_dataset as gluonts_get_dataset
 from gluonts.dataset.common import ListDataset
 from gluonts.dataset.multivariate_grouper import MultivariateGrouper
+from utils import get_dataset_from_file
 
 from torch import from_numpy
 from torch.utils.data import TensorDataset
@@ -12,7 +13,7 @@ TSDataset = list[np.ndarray]
 
 
 class GluonTSDataManager:
-    def __init__(self, name: str, multivariate: bool) -> None:
+    def __init__(self, name: str, prediction_length: int, context_length: int, multivariate: bool) -> None:
         """
         Initialize the data manager. The stored train and test time series are
         lists of dict with the "target" field being either 1D array (univariate)
@@ -21,6 +22,8 @@ class GluonTSDataManager:
         (ts_length, n_features), with n_features = 1 for univariate.
         """
         self.name = name
+        self.prediction_length = prediction_length
+        self.context_length = context_length
         self.multivariate = multivariate
         self.init_main_dataset()
         # data from normalizer
@@ -41,25 +44,27 @@ class GluonTSDataManager:
         Train and test datasets are GluonTS datasets with the target field being
         either 1D array (univariate) or 2D array (n_feat, ts_length) (multivariate).
         """
-        gluonts_dataset = gluonts_get_dataset(self.name)
-        self.n_features = len(list(gluonts_dataset.train)) if self.multivariate else 1
-        assert gluonts_dataset.test is not None
+        # gluonts_dataset = gluonts_get_dataset(self.name)
+        self.train_dataset, self.test_dataset, self.freq, self.seasonality = get_dataset_from_file(self.name, self.prediction_length, self.context_length)
+        # gluonts_dataset 
+        self.n_features = len(list(self.train_dataset)) if self.multivariate else 1
+        assert self.test_dataset is not None
         if self.multivariate:
             train_grouper = MultivariateGrouper(max_target_dim=self.n_features)
             test_grouper = MultivariateGrouper(
                 max_target_dim=self.n_features,
-                num_test_dates=len(list(gluonts_dataset.test)) // self.n_features,
+                num_test_dates=len(list(self.test_dataset)) // self.n_features,
             )
-            self.train_dataset = train_grouper(gluonts_dataset.train)
-            self.test_dataset = test_grouper(gluonts_dataset.test)
+            self.train_dataset = train_grouper(self.train_dataset)
+            self.test_dataset = test_grouper(self.test_dataset)
         else:
-            self.train_dataset = gluonts_dataset.train
-            self.test_dataset = gluonts_dataset.test
+            self.train_dataset = self.train_dataset
+            self.test_dataset = self.test_dataset
 
-        assert isinstance(gluonts_dataset.metadata.prediction_length, int)
-        self.prediction_length = gluonts_dataset.metadata.prediction_length
-        self.context_length = 2 * self.prediction_length
-        self.freq = gluonts_dataset.metadata.freq
+        # assert isinstance(gluonts_dataset.metadata.prediction_length, int)
+        # self.prediction_length = gluonts_dataset.metadata.prediction_length
+        # self.context_length = 2 * self.prediction_length
+        # self.freq = gluonts_dataset.metadata.freq
 
     def get_dataset_for_normalizer(self) -> tuple[TSDataset, TSDataset]:
         """

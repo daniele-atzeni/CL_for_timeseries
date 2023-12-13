@@ -1,0 +1,10 @@
+ ########################### ffn on nn5_weekly_dataset Final MASE: 0.8009468702700692
+ ########################### ffn on us_births_dataset Final MASE: 1.7636523413189782
+ ########################### ffn on solar_10_minutes_dataset Final MASE: 1.4398701525066262
+ ########################### ffn on weather_dataset Final MASE: 0.6153797227526612
+ ########################### ffn on sunspot_dataset_without_missing_values Final MASE: 0.06460098131232518
+ ########################### transformer on nn5_weekly_dataset Final MASE: 0.804599209775372
+ ########################### transformer on us_births_dataset Final MASE: 1.470327546524639
+ ########################### transformer on weather_dataset Final MASE: 0.7747692444705031
+ ########################### transformer on sunspot_dataset_without_missing_values Final MASE: 0.003199045589964164
+ ########################### ffn with gas norm on nn5_weekly_dataset Final MASE: 0.7986556698806907

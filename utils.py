@@ -332,7 +332,7 @@ def get_dataset_from_file(dataset_name, external_forecast_horizon, context_lengt
         forecast_horizon,
         contain_missing_values,
         contain_equal_length,
-    ) = convert_tsf_to_dataframe(f"tsf_data/{dataset_name}.tsf", "NaN", "series_value")
+    ) = convert_tsf_to_dataframe(f"{dataset_name}.tsf", "NaN", "series_value")
 
     VALUE_COL_NAME = "series_value"
     TIME_COL_NAME = "start_timestamp"
