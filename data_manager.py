@@ -4,6 +4,7 @@ from gluonts.dataset import DataEntry
 from gluonts.dataset.repository import get_dataset as gluonts_get_dataset
 from gluonts.dataset.common import ListDataset
 from gluonts.dataset.multivariate_grouper import MultivariateGrouper
+from utils import get_dataset_from_file
 
 from torch import from_numpy
 from torch.utils.data import TensorDataset
@@ -33,6 +34,8 @@ class GluonTSDataManager:
         (ts_length, n_features), with n_features = 1 for univariate.
         """
         self.name = name
+        self.prediction_length = prediction_length
+        self.context_length = context_length
         self.multivariate = multivariate
         self.init_main_dataset(root_folder)
         # data from normalizer

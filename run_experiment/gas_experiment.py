@@ -84,6 +84,8 @@ def init_folders_for_dl(root_folder: str) -> dict:
 
 def run_gas_experiment(
     dataset_name: str,
+    prediction_length: int,
+    context_length: int,
     dataset_type: str,
     dataset_params: dict,
     root_folder_name: str,
@@ -234,3 +236,15 @@ def run_gas_experiment(
         )
     else:
         raise ValueError(f"Unknown deep learning library: {dl_model_library}")
+
+    return (
+        data_manager.n_features,
+        data_manager.context_length,
+        data_manager.prediction_length,
+        data_manager.get_gluon_dataset_for_dl_layer(),
+        regr.coef_,  # regressor weights
+        regr.intercept_,  # regressor bias
+        dl_model_name,
+        dl_model_params,
+        dl_folders,
+    )
