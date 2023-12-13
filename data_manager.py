@@ -74,6 +74,9 @@ class GluonTSDataManager:
             self.context_length = context_length
             self.freq = freq
 
+        train_dataset = self._shrink_dataset(train_dataset)
+        test_dataset = self._shrink_dataset(test_dataset)
+
         self.n_features = len(list(train_dataset)) if self.multivariate else 1
         assert test_dataset is not None
         if self.multivariate:
@@ -87,6 +90,19 @@ class GluonTSDataManager:
         else:
             self.train_dataset = train_dataset
             self.test_dataset = test_dataset
+
+    def _shrink_dataset(self, dataset) -> list[DataEntry]:
+        """
+        This method shrinks the dataset by dividing all the time series by the
+        mean of the first self.context_length points. Here, all time series are
+        univariate since they come from file or from GluonTS.
+        """
+        new_dataset = []
+        for el in dataset:
+            shrink_val = np.mean(el["target"][: self.context_length])
+            el["target"] = el["target"] / shrink_val
+            new_dataset.append(el)
+        return new_dataset
 
     def get_dataset_for_normalizer(self) -> tuple[TSDataset, TSDataset]:
         """
