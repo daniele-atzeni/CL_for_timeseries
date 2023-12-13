@@ -8,7 +8,10 @@ from data_manager import GluonTSDataManager
 from utils import init_folder, load_list_of_elements
 
 from run_experiment.normalizer_experiment import experiment_normalizer
-from run_experiment.mean_layer_experiment import experiment_mean_layer
+from run_experiment.mean_layer_experiment import (
+    experiment_mean_layer_linear,
+    experiment_mean_layer_gas,
+)
 from run_experiment.dl_model_experiment import experiment_gluonts, experiment_torch
 
 
@@ -49,8 +52,9 @@ def get_data_for_mean_layer(normalizer_folders: dict) -> tuple:
     train_vars = load_list_of_elements(normalizer_folders["train_vars"])
     test_means = load_list_of_elements(normalizer_folders["test_means"])
     test_vars = load_list_of_elements(normalizer_folders["test_vars"])
+    train_norm_params = load_list_of_elements(normalizer_folders["train_params"])
 
-    return train_means, train_vars, test_means, test_vars
+    return train_means, train_vars, test_means, test_vars, train_norm_params
 
 
 def init_folders_for_mean_layer(root_folder: str) -> dict:
@@ -89,6 +93,7 @@ def run_gas_experiment(
     mean_layer_name: str,
     dl_model_library: str,
     dl_model_name: str,
+    dataset_file_folder: str | None = None,
     normalizer_params: dict = {},
     mean_layer_params: dict = {},
     dl_model_params: dict = {},
@@ -102,7 +107,7 @@ def run_gas_experiment(
 
     # INITIALIZE DATA MANAGER
     multivariate = dataset_params["multivariate"]
-    data_manager = GluonTSDataManager(dataset_name, multivariate)
+    data_manager = GluonTSDataManager(dataset_name, multivariate, dataset_file_folder)
 
     # if the dataset is synthetic, we must save it
     if dataset_type == "synthetic":
@@ -150,25 +155,42 @@ def run_gas_experiment(
     # - mean_layer next point predictions for each time series in the test dataset
 
     # we have to load some data again for the next steps
-    train_means, train_vars, test_means, test_vars = get_data_for_mean_layer(
-        normalizer_folders
-    )
+    (
+        train_means,
+        train_vars,
+        test_means,
+        test_vars,
+        train_norm_params,
+    ) = get_data_for_mean_layer(normalizer_folders)
 
     data_manager.set_data_from_normalizer(
-        train_means, train_vars, test_means, test_vars
+        train_means, train_vars, test_means, test_vars, train_norm_params
     )
 
     mean_layer_folders = init_folders_for_mean_layer(root_folder)
 
     # this function computes and saves results and parameters from the mean layer
-    experiment_mean_layer(
-        data_manager.get_dataset_for_linear_mean_layer(
-            n_training_samples, n_test_samples
-        ),
-        mean_layer_name,
-        mean_layer_params,
-        mean_layer_folders,
-    )
+    if mean_layer_name == "linear":
+        experiment_mean_layer_linear(
+            data_manager.get_dataset_for_linear_mean_layer(
+                n_training_samples, n_test_samples
+            ),
+            mean_layer_name,
+            mean_layer_params,
+            mean_layer_folders,
+        )
+    elif mean_layer_name == "gas":
+        experiment_mean_layer_gas(
+            data_manager.get_dataset_for_linear_mean_layer(
+                n_training_samples, n_test_samples
+            ),
+            mean_layer_name,
+            mean_layer_params,
+            mean_layer_folders,
+        )
+    else:
+        raise ValueError(f"Unknown mean layer method: {mean_layer_name}")
+
     if stop_after_mean_layer:
         return
 

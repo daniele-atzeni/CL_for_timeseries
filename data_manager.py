@@ -8,11 +8,23 @@ from gluonts.dataset.multivariate_grouper import MultivariateGrouper
 from torch import from_numpy
 from torch.utils.data import TensorDataset
 
+from utils import get_dataset_from_file
+
 TSDataset = list[np.ndarray]
+
+NAME_TO_CONTEXT_AND_PRED = {
+    "nn5_weekly_dataset": (65, 8),
+    "us_births_dataset": (9, 30),
+    "solar_10_minutes_dataset": (50, 1008),
+    "weather_dataset": (9, 30),
+    "sunspot_dataset_without_missing_values": (9, 30),
+}
 
 
 class GluonTSDataManager:
-    def __init__(self, name: str, multivariate: bool) -> None:
+    def __init__(
+        self, name: str, multivariate: bool, root_folder: str | None = None
+    ) -> None:
         """
         Initialize the data manager. The stored train and test time series are
         lists of dict with the "target" field being either 1D array (univariate)
@@ -22,14 +34,15 @@ class GluonTSDataManager:
         """
         self.name = name
         self.multivariate = multivariate
-        self.init_main_dataset()
+        self.init_main_dataset(root_folder)
         # data from normalizer
         self.train_means = None
         self.train_vars = None
         self.test_means = None
         self.test_vars = None
+        self.train_params = None
 
-    def init_main_dataset(self) -> None:
+    def init_main_dataset(self, root_folder: str | None) -> None:
         """
         This method must initialize:
         - self.train_dataset
@@ -41,25 +54,38 @@ class GluonTSDataManager:
         Train and test datasets are GluonTS datasets with the target field being
         either 1D array (univariate) or 2D array (n_feat, ts_length) (multivariate).
         """
-        gluonts_dataset = gluonts_get_dataset(self.name)
-        self.n_features = len(list(gluonts_dataset.train)) if self.multivariate else 1
-        assert gluonts_dataset.test is not None
+        if root_folder is None:
+            gluonts_dataset = gluonts_get_dataset(self.name)
+            train_dataset = gluonts_dataset.train
+            test_dataset = gluonts_dataset.test
+            assert isinstance(gluonts_dataset.metadata.prediction_length, int)
+            self.prediction_length = gluonts_dataset.metadata.prediction_length
+            self.context_length = 2 * self.prediction_length
+            self.freq = gluonts_dataset.metadata.freq
+        else:
+            context_length, external_forecast_horizon = NAME_TO_CONTEXT_AND_PRED[
+                self.name
+            ]
+            train_dataset, test_dataset, freq, _ = get_dataset_from_file(
+                self.name, external_forecast_horizon, context_length
+            )
+            self.prediction_length = external_forecast_horizon
+            self.context_length = context_length
+            self.freq = freq
+
+        self.n_features = len(list(train_dataset)) if self.multivariate else 1
+        assert test_dataset is not None
         if self.multivariate:
             train_grouper = MultivariateGrouper(max_target_dim=self.n_features)
             test_grouper = MultivariateGrouper(
                 max_target_dim=self.n_features,
-                num_test_dates=len(list(gluonts_dataset.test)) // self.n_features,
+                num_test_dates=len(list(test_dataset)) // self.n_features,
             )
-            self.train_dataset = train_grouper(gluonts_dataset.train)
-            self.test_dataset = test_grouper(gluonts_dataset.test)
+            self.train_dataset = train_grouper(train_dataset)
+            self.test_dataset = test_grouper(test_dataset)
         else:
-            self.train_dataset = gluonts_dataset.train
-            self.test_dataset = gluonts_dataset.test
-
-        assert isinstance(gluonts_dataset.metadata.prediction_length, int)
-        self.prediction_length = gluonts_dataset.metadata.prediction_length
-        self.context_length = 2 * self.prediction_length
-        self.freq = gluonts_dataset.metadata.freq
+            self.train_dataset = train_dataset
+            self.test_dataset = test_dataset
 
     def get_dataset_for_normalizer(self) -> tuple[TSDataset, TSDataset]:
         """
@@ -89,6 +115,7 @@ class GluonTSDataManager:
         train_vars: TSDataset,
         test_means: TSDataset,
         test_vars: TSDataset,
+        train_params: TSDataset,
     ) -> None:
         assert (
             len(train_means) == len(train_vars)
@@ -100,6 +127,7 @@ class GluonTSDataManager:
         self.train_vars = train_vars
         self.test_means = test_means
         self.test_vars = test_vars
+        self.train_params = train_params
 
     def _prepare_for_sampling_ts(self, n_samples: int, phase: str, seed: int) -> tuple:
         assert phase in ["train", "test"], "Wrong phase"
@@ -187,7 +215,9 @@ class GluonTSDataManager:
             and self.train_vars is not None
             and self.test_means is not None
             and self.test_vars is not None
+            and self.train_params is not None
         ), "Data from normalizer not set"
+        # self.params is a list of #GAS_params lists of numpy arrays of shape (n_features)
 
         if not self.multivariate:
             train_dataset = ListDataset(
@@ -196,11 +226,13 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var in zip(
+                    for data_entry, mean, var, train_param in zip(
                         self.train_dataset,
                         self.train_means,
                         self.train_vars,
+                        self.train_params,
                     )
                 ],
                 freq=self.freq,
@@ -211,9 +243,13 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var in zip(
-                        self.test_dataset, self.test_means, self.test_vars
+                    for data_entry, mean, var, train_param in zip(
+                        self.test_dataset,
+                        self.test_means,
+                        self.test_vars,
+                        self.train_params,
                     )
                 ],
                 freq=self.freq,
@@ -225,11 +261,13 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var in zip(
+                    for data_entry, mean, var, train_param in zip(
                         self.train_dataset,
                         self.train_means,
                         self.train_vars,
+                        self.train_params,
                     )
                 ],
                 freq=self.freq,
@@ -241,9 +279,13 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var in zip(
-                        self.test_dataset, self.test_means, self.test_vars
+                    for data_entry, mean, var, train_param in zip(
+                        self.test_dataset,
+                        self.test_means,
+                        self.test_vars,
+                        self.train_params,
                     )
                 ],
                 freq=self.freq,

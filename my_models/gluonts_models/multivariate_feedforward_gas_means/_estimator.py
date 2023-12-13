@@ -58,6 +58,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     def __init__(
         self,
         mean_layer,  ## my code here
+        n_features,  ## my code here
         distr_output: DistributionOutput,  ## my code here
         prediction_length: int,
         sampling: bool = True,
@@ -91,6 +92,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         ), "The value of `num_parallel_samples` should be > 0"
 
         self.mean_layer = mean_layer  ## my code here
+        self.n_features = n_features  ## my code here
 
         self.num_hidden_dimensions = (
             num_hidden_dimensions
@@ -141,12 +143,6 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             ],
             allow_missing=True,
         )
-        """+ AddObservedValuesIndicator(
-            target_field=FieldName.TARGET,
-            output_field=FieldName.OBSERVED_VALUES,    
-            dtype=self.dtype,
-            imputation_method=self.imputation_method,
-        )"""
 
     def _create_instance_splitter(self, mode: str):
         assert mode in ["training", "validation", "test"]
@@ -166,8 +162,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             past_length=self.context_length,
             future_length=self.prediction_length,
             time_series_fields=[
-                FieldName.FEAT_DYNAMIC_REAL,  ## my code here
-                # FieldName.OBSERVED_VALUES,
+                FieldName.FEAT_DYNAMIC_REAL,
             ],
         )
 
@@ -207,6 +202,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     def create_training_network(self) -> HybridBlock:
         return SimpleFeedForwardTrainingNetwork(
             mean_layer=self.mean_layer,  ## my code here
+            n_features=self.n_features,  ## my code here
             num_hidden_dimensions=self.num_hidden_dimensions,
             prediction_length=self.prediction_length,
             context_length=self.context_length,
@@ -223,6 +219,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         if self.sampling is True:
             prediction_network = SimpleFeedForwardSamplingNetwork(
                 mean_layer=self.mean_layer,  ## my code here
+                n_features=self.n_features,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,
@@ -244,6 +241,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         else:
             prediction_network = SimpleFeedForwardDistributionNetwork(
                 mean_layer=self.mean_layer,  ## my code here
+                n_features=self.n_features,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,

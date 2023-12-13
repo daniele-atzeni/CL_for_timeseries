@@ -260,7 +260,6 @@ class GASTStudent(GASNormalizer):
         mean_strength: float,
         var_strength: float,
         eps: float = 1e-9,
-        # max_var: float = 1000,
     ) -> None:
         super(GASTStudent, self).__init__()
 
@@ -270,7 +269,6 @@ class GASTStudent(GASNormalizer):
         self.mean_strength = mean_strength
         self.var_strength = var_strength
         self.eps = eps
-        # self.max_var = max_var
 
     def update_mean_and_var(
         self,

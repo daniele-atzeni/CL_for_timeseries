@@ -74,8 +74,6 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         past_target (batch, context_length, n_features)
         past_feat_dynamic_real (batch, context_length, n_features*2)    # contains mean and vars
         mlp_outputs (batch, pred_length, last_net_hidden_dim)
-        distr_args tuple (3 * (batch, pred_length))
-        pred_means (batch, pred_length)
         """
 
         means = past_feat_dynamic_real.slice(
