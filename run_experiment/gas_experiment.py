@@ -84,8 +84,6 @@ def init_folders_for_dl(root_folder: str) -> dict:
 
 def run_gas_experiment(
     dataset_name: str,
-    prediction_length: int,
-    context_length: int,
     dataset_type: str,
     dataset_params: dict,
     root_folder_name: str,
@@ -103,7 +101,7 @@ def run_gas_experiment(
     n_test_samples: int = 1000,
     stop_after_normalizer: bool = False,
     stop_after_mean_layer: bool = False,
-) -> None:
+) -> tuple:
     # INITIALIZE ROOT FOLDERS
     root_folder = init_folder(root_folder_name)
 
@@ -146,8 +144,6 @@ def run_gas_experiment(
         normalizer_bounds,
         normalizer_folders,
     )
-    if stop_after_normalizer:
-        return
 
     # MEAN LAYER PHASE
     # with this phase we will save
@@ -192,9 +188,6 @@ def run_gas_experiment(
         )
     else:
         raise ValueError(f"Unknown mean layer method: {mean_layer_name}")
-
-    if stop_after_mean_layer:
-        return
 
     # DEEP LEARNING MODEL PHASE
     # with this phase we will save

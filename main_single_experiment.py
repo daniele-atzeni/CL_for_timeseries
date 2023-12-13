@@ -9,7 +9,7 @@ if __name__ == "__main__":
     DATASET_PARAMS = real_world_data_params  # synthetic_generation_params
     DATASET_PARAMS["multivariate"] = True  # or False
     DATASET_FILE_FOLDER = None
-    # if None, dataset is obtained from GluonTS, otherwise from file
+    # if None, dataset is obtained from GluonTS, if str from file
 
     NORMALIZER_NAME = "gas_t_student"  # "gas_simple_gaussian", "gas_complex_gaussian"
     NORMALIZER_INITIAL_GUESSES = gas_t_stud_initial_guesses  # gas_{name}_*
