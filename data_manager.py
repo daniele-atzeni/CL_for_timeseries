@@ -101,8 +101,8 @@ class GluonTSDataManager:
         """
         new_dataset = []
         for el in dataset:
-            shrink_val = np.mean(el["target"][: self.context_length])
-            el["target"] = el["target"] / shrink_val
+            scale_val = np.mean(el["target"][: self.context_length])
+            el["target"] = el["target"] / scale_val
             new_dataset.append(el)
         return new_dataset
 

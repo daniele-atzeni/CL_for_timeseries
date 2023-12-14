@@ -15,7 +15,10 @@ from my_models.gluonts_models.feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts,
 )
 from my_models.gluonts_models.multivariate_feedforward_linear_means._estimator import (
-    SimpleFeedForwardEstimator as FF_gluonts_multivariate,
+    SimpleFeedForwardEstimator as FF_gluonts_multivariate_linear,
+)
+from my_models.gluonts_models.multivariate_feedforward_gas_means._estimator import (
+    SimpleFeedForwardEstimator as FF_gluonts_multivariate_gas,
 )
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
 
@@ -72,7 +75,19 @@ def experiment_gluonts(
             )
         )
     elif isinstance(trained_mean_layer, GASNormalizer):
-        mean_layer = trained_mean_layer
+        mean_layer = mx.gluon.nn.HybridSequential()
+        mean_layer.add(
+            mx.gluon.nn.HybridLambda(
+                lambda F, x, *args: trained_mean_layer.update_mean_and_var(x, *args)
+            )
+        )
+        mean_layer.add(
+            mx.gluon.nn.HybridLambda(
+                lambda F, o: F.reshape(
+                    o, (-1, prediction_length * n_features)
+                )  # no need for that but just to be sure
+            )
+        )
     else:
         raise ValueError(
             f"Unknown mean layer type: {type(trained_mean_layer)} {trained_mean_layer}"
@@ -96,15 +111,26 @@ def experiment_gluonts(
                 **estimator_parameters,
             )
         else:
-            estimator = FF_gluonts_multivariate(
-                mean_layer,
-                n_features,
-                MultivariateGaussianOutput(dim=n_features),
-                prediction_length=prediction_length,
-                context_length=context_length,
-                trainer=trainer,
-                **estimator_parameters,
-            )
+            if isinstance(trained_mean_layer, GASNormalizer):
+                estimator = FF_gluonts_multivariate_gas(
+                    mean_layer,
+                    n_features,
+                    MultivariateGaussianOutput(dim=n_features),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+            else:
+                estimator = FF_gluonts_multivariate_linear(
+                    mean_layer,
+                    n_features,
+                    MultivariateGaussianOutput(dim=n_features),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
     else:
         raise ValueError(f"Unknown estimator name: {dl_model_name}")
 

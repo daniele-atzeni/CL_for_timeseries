@@ -72,7 +72,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         F,
         past_target: Tensor,
         past_feat_dynamic_real: Tensor,
-        past_feat_static_real: Tensor,
+        feat_static_real: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         past_target (batch, context_length, n_features)
@@ -91,15 +91,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
             end=(None, None, 2 * self.n_features),
         )
         # static
-        n_params = past_feat_static_real.shape[0] // self.n_features
-        params = []
-        for i in range(n_params):
-            params.append(
-                past_feat_static_real.slice(
-                    begin=(i * self.n_features),
-                    end=((i + 1) * self.n_features),
-                )
-            )
+        params = feat_static_real.reshape((-1, self.n_features, -1))
 
         # normalize past_target
         past_target = (past_target - means) / (
@@ -120,19 +112,22 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
 
         # "denormalization"
         # initialize pred means of shape (batch, pred_length, n_feat)
-        pred_means = F.zeros(
-            (past_target.shape[0], self.prediction_length, self.n_features)
-        )
-        for batch in range(past_target.shape[0]):
+        pred_means = F.zeros_like(distr_args[0])
+        for batch, past_target_el in enumerate(past_target):
             for feat in range(self.n_features):
-                prev_ts = past_target[batch, -1, feat]
-                prev_mean = means[batch, -1, feat]
-                prev_var = vars[batch, -1, feat]
+                prev_ts = past_target_el.slice(begin=(-1, feat), end=(None, feat + 1))
+                prev_mean = means.slice(
+                    begin=(batch, -1, feat), end=(batch + 1, None, feat + 1)
+                )
+                prev_var = vars.slice(
+                    begin=(batch, -1, feat), end=(batch + 1, None, feat + 1)
+                )
                 for pred_ind in range(self.prediction_length):
-                    gas_param = [el[feat] for el in params]
-                    mean, var = self.mean_layer(
-                        prev_ts, prev_mean, prev_var, *gas_param
-                    )
+                    gas_param = [el for el in params[feat]]
+                    args = [prev_mean, prev_var] + gas_param
+
+                    mean, var = self.mean_layer(prev_ts, args)
+
                     pred_means[batch, pred_ind, feat] = mean
                     prev_ts = mean
                     prev_mean = mean
@@ -154,10 +149,10 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
         past_target: Tensor,
         future_target: Tensor,
         past_feat_dynamic_real: Tensor,
-        past_feat_static_real: Tensor,
+        feat_static_real: Tensor,
     ) -> Tensor:
         distr_args, loc, scale = self.get_distr_args(
-            F, past_target, past_feat_dynamic_real, past_feat_static_real
+            F, past_target, past_feat_dynamic_real, feat_static_real
         )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
         loss = distr.loss(future_target)
@@ -176,10 +171,10 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
         F,
         past_target: Tensor,
         past_feat_dynamic_real: Tensor,
-        past_feat_static_real: Tensor,
+        feat_static_real: Tensor,
     ) -> Tensor:
         distr_args, loc, scale = self.get_distr_args(
-            F, past_target, past_feat_dynamic_real, past_feat_static_real
+            F, past_target, past_feat_dynamic_real, feat_static_real
         )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
 
@@ -201,9 +196,9 @@ class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
         F,
         past_target: Tensor,
         past_feat_dynamic_real: Tensor,
-        past_feat_static_real: Tensor,
+        feat_static_real: Tensor,
     ) -> Tensor:
         distr_args, loc, scale = self.get_distr_args(
-            F, past_target, past_feat_dynamic_real, past_feat_static_real
+            F, past_target, past_feat_dynamic_real, feat_static_real
         )
         return distr_args, loc, scale  # type:ignore not my code
