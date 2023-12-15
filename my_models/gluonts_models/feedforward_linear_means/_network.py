@@ -78,13 +78,8 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         loc (batch, 1)
         pred_means (batch, pred_length)
         """
-        means = past_feat_dynamic_real.slice_axis(
-            axis=2, begin=0, end=1
-        ).squeeze()  # type:ignore
-        vars = past_feat_dynamic_real.slice_axis(
-            axis=2, begin=1, end=2
-        ).squeeze()  # type:ignore
-
+        means = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1))
+        vars = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2))
         # normalize past_target
         past_target = (past_target - means) / (vars.sqrt() + 1e-8)
 

@@ -296,11 +296,13 @@ class TransformerTrainingNetwork(TransformerNetwork):
         # include windows with length history_length, that is bigger than the
         # context length. So, we must take only the last context_length values
         # of past_feat_dynamic_real
-        pred_means = self.mean_layer(
-            mx.symbol.slice_axis(
-                past_feat_dynamic_real, axis=1, begin=-self.context_length, end=None
-            )
-        )
+        means = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1))
+        means = F.slice_axis(
+            means, axis=1, begin=-self.context_length, end=None
+        )  # idk why I dont have to do this for FFNN
+        # vars = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2))
+
+        pred_means = self.mean_layer(means)
         # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
         new_distr_args = tuple(
             [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
@@ -388,13 +390,13 @@ class TransformerPredictionNetwork(TransformerNetwork):
         # include windows with length history_length, that is bigger than the
         # context length. So, we must take only the last context_length values
         # of past_feat_dynamic_real
-        pred_means = self.mean_layer(
-            past_feat_dynamic_real.slice_axis(
-                axis=1,
-                begin=-self.context_length,
-                end=None,
-            )
-        )
+        means = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1))
+        means = F.slice_axis(
+            means, axis=1, begin=-self.context_length, end=None
+        )  # idk why I dont have to do this for FFNN
+        # vars = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2))
+
+        pred_means = self.mean_layer(means)
         # doing the same processing of other tensors...
         repeated_pred_means = pred_means.repeat(
             repeats=self.num_parallel_samples, axis=0

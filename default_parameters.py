@@ -59,9 +59,24 @@ linear_mean_layer_params = {}
 
 # DL MODEL PARAMS
 # gluonts
-gluonts_multivariate_feedforward_params = {
+gluonts_feedforward_params = {
     "main_model": {
         "num_hidden_dimensions": [512, 256],
+    },
+    "training": {
+        "epochs": 5,
+        "learning_rate": 5 * 1e-4,
+        "num_batches_per_epoch": 100,
+    },
+    "prediction": {"num_samples": 100},
+    "evaluation": {"quantiles": [0.1, 0.5, 0.9]},
+}
+
+gluonts_transformer_params = {
+    "main_model": {
+        "embedding_dimension": 20,
+        "model_dim": 32,
+        "num_heads": 8,
     },
     "training": {
         "epochs": 5,

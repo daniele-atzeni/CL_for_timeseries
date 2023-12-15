@@ -77,7 +77,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         """
         past_target (batch, context_length, n_features)
         past_feat_dynamic_real (batch, context_length, n_features*2)    # contains mean and vars
-        past_feat_static_real (batch, n_gas_params * n_features)
+        feat_static_real (batch, n_gas_params * n_features)
         mlp_outputs (batch, pred_length, last_net_hidden_dim)
         """
         # retrieve features
@@ -111,9 +111,9 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         # which causes problems in the multivariate case
 
         # "denormalization"
-        # initialize pred means of shape (batch, pred_length, n_feat)
-        pred_means = F.zeros_like(distr_args[0])
+        pred_means = []
         for batch, past_target_el in enumerate(past_target):
+            batch_means = []
             for feat in range(self.n_features):
                 prev_ts = past_target_el.slice(begin=(-1, feat), end=(None, feat + 1))
                 prev_mean = means.slice(
@@ -122,17 +122,26 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
                 prev_var = vars.slice(
                     begin=(batch, -1, feat), end=(batch + 1, None, feat + 1)
                 )
+                feat_means = []
                 for pred_ind in range(self.prediction_length):
-                    gas_param = [el for el in params[feat]]
-                    args = [prev_mean, prev_var] + gas_param
+                    gas_param = [
+                        params.slice(
+                            begin=(batch, feat, i), end=(batch + 1, feat + 1, i + 1)
+                        ).squeeze()
+                        for i in range(7)
+                    ]
+                    gas_input = [prev_mean, prev_var] + gas_param
 
-                    mean, var = self.mean_layer(prev_ts, args)
+                    mean, var = self.mean_layer(prev_ts, gas_input)
 
-                    pred_means[batch, pred_ind, feat] = mean
+                    feat_means.append(mean)
                     prev_ts = mean
                     prev_mean = mean
                     prev_var = var
 
+                batch_means.append(F.stack(*feat_means, axis=1))
+            pred_means.append(F.stack(*batch_means, axis=-1))
+        pred_means = F.stack(*pred_means, axis=0)
         # we add mean layer preds to the means predicted by the output distribution
         # i.e. the 0th element of distr_args
         distr_args = tuple(

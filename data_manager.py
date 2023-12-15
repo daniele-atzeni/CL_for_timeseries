@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 
 from gluonts.dataset import DataEntry
@@ -69,7 +71,9 @@ class GluonTSDataManager:
                 self.name
             ]
             train_dataset, test_dataset, freq, seasonality = get_dataset_from_file(
-                self.name, external_forecast_horizon, context_length
+                os.path.join(root_folder, self.name),
+                external_forecast_horizon,
+                context_length,
             )
             self.prediction_length = external_forecast_horizon
             self.context_length = context_length
@@ -82,6 +86,9 @@ class GluonTSDataManager:
         self.n_features = len(list(train_dataset)) if self.multivariate else 1
         assert test_dataset is not None
         if self.multivariate:
+            assert (
+                len(list(train_dataset)) > 1
+            ), "Just one time series in the dataset, it's impossible to make it multivariate"
             train_grouper = MultivariateGrouper(max_target_dim=self.n_features)
             test_grouper = MultivariateGrouper(
                 max_target_dim=self.n_features,
@@ -245,13 +252,11 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var, train_param in zip(
+                    for data_entry, mean, var in zip(
                         self.train_dataset,
                         self.train_means,
                         self.train_vars,
-                        self.train_params,
                     )
                 ],
                 freq=self.freq,
@@ -262,13 +267,11 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var, train_param in zip(
+                    for data_entry, mean, var in zip(
                         self.test_dataset,
                         self.test_means,
                         self.test_vars,
-                        self.train_params,
                     )
                 ],
                 freq=self.freq,

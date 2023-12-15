@@ -201,6 +201,7 @@ def run_gas_experiment(
             data_manager.n_features,
             data_manager.context_length,
             data_manager.prediction_length,
+            data_manager.freq,
             data_manager.get_gluon_dataset_for_dl_layer(),
             mean_layer,
             dl_model_name,

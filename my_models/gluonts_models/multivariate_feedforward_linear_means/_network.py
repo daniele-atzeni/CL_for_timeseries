@@ -86,9 +86,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         )
 
         # normalize past_target
-        past_target = (past_target - means) / (
-            vars.sqrt() + 1e-8  # type:ignore MXNet issue
-        )
+        past_target = (past_target - means) / (F.sqrt(vars) + 1e-8)
         past_target = past_target.flatten()
 
         mlp_outputs = self.mlp(past_target)
@@ -102,7 +100,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         # Setting this to None avoids the call to AffineTransformedDistribution
         # which causes problems in the multivariate case
 
-        pred_means = self.mean_layer(means.flatten())  # type:ignore MXNet issue
+        pred_means = self.mean_layer(F.flatten(means))
         pred_means = pred_means.reshape((-1, self.prediction_length, self.n_features))
         # we add mean layer preds to the means predicted by the output distribution
         # i.e. the 0th element of distr_args

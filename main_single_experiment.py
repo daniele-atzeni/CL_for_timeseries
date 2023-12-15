@@ -7,8 +7,8 @@ if __name__ == "__main__":
     DATASET_TYPE = "gluonts"  # "synthetic"
     DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
     DATASET_PARAMS = real_world_data_params  # synthetic_generation_params
-    DATASET_PARAMS["multivariate"] = True  # or False
-    DATASET_FILE_FOLDER = None
+    DATASET_PARAMS["multivariate"] = False  # or False
+    DATASET_FILE_FOLDER = None  # "tsf_data"
     # if None, dataset is obtained from GluonTS, if str from file
 
     NORMALIZER_NAME = "gas_t_student"  # "gas_simple_gaussian", "gas_complex_gaussian"
@@ -20,8 +20,8 @@ if __name__ == "__main__":
     MEAN_LAYER_PARAMS = linear_mean_layer_params
 
     DL_MODEL_LIBRARY = "gluonts"  # "torch"
-    DL_MODEL_NAME = "feedforward"  # TODO: "transformer"
-    DL_MODEL_PARAMS = gluonts_multivariate_feedforward_params
+    DL_MODEL_NAME = "transformer"  # "feedforward"  # "transformer"
+    DL_MODEL_PARAMS = gluonts_transformer_params  # gluonts_feedforward_params
 
     N_TRAINING_SAMPLES = 5000
     N_TEST_SAMPLES = 1000

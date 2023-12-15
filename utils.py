@@ -407,14 +407,14 @@ def get_dataset_from_file(dataset_name, external_forecast_horizon, context_lengt
         train_series_full_list.append(
             {
                 FieldName.TARGET: train_series_data,
-                FieldName.START: pd.Timestamp(train_start_time, freq=freq),
+                FieldName.START: pd.Timestamp(train_start_time),  # freq=freq),
             }
         )
 
         test_series_full_list.append(
             {
                 FieldName.TARGET: series_data,
-                FieldName.START: pd.Timestamp(train_start_time, freq=freq),
+                FieldName.START: pd.Timestamp(train_start_time),  # freq=freq),
             }
         )
 

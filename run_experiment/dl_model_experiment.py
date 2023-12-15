@@ -20,6 +20,10 @@ from my_models.gluonts_models.multivariate_feedforward_linear_means._estimator i
 from my_models.gluonts_models.multivariate_feedforward_gas_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate_gas,
 )
+from my_models.gluonts_models.transformer_linear_means._estimator import (
+    TransformerEstimator as Transformer_gluonts_linear_means,
+)
+
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
 
 from normalizer import GASNormalizer
@@ -37,6 +41,7 @@ def experiment_gluonts(
     n_features: int,
     context_length: int,
     prediction_length: int,
+    frequency: str,
     dataset: tuple[list[DataEntry], list[DataEntry]],
     trained_mean_layer: LinearRegression | GASNormalizer,
     dl_model_name: str,
@@ -75,17 +80,9 @@ def experiment_gluonts(
             )
         )
     elif isinstance(trained_mean_layer, GASNormalizer):
-        mean_layer = mx.gluon.nn.HybridSequential()
-        mean_layer.add(
-            mx.gluon.nn.HybridLambda(
-                lambda F, x, *args: trained_mean_layer.update_mean_and_var(x, *args)
-            )
-        )
-        mean_layer.add(
-            mx.gluon.nn.HybridLambda(
-                lambda F, o: F.reshape(
-                    o, (-1, prediction_length * n_features)
-                )  # no need for that but just to be sure
+        mean_layer = mx.gluon.nn.HybridLambda(
+            lambda F, x, gas_param: trained_mean_layer.update_mean_and_var(
+                x, *gas_param
             )
         )
     else:
@@ -104,7 +101,7 @@ def experiment_gluonts(
         if n_features == 1:
             estimator = FF_gluonts(
                 mean_layer,
-                StudentTOutput(),
+                distr_output=StudentTOutput(),
                 prediction_length=prediction_length,
                 context_length=context_length,
                 trainer=trainer,
@@ -115,7 +112,7 @@ def experiment_gluonts(
                 estimator = FF_gluonts_multivariate_gas(
                     mean_layer,
                     n_features,
-                    MultivariateGaussianOutput(dim=n_features),
+                    distr_output=MultivariateGaussianOutput(dim=n_features),
                     prediction_length=prediction_length,
                     context_length=context_length,
                     trainer=trainer,
@@ -125,12 +122,23 @@ def experiment_gluonts(
                 estimator = FF_gluonts_multivariate_linear(
                     mean_layer,
                     n_features,
-                    MultivariateGaussianOutput(dim=n_features),
+                    distr_output=MultivariateGaussianOutput(dim=n_features),
                     prediction_length=prediction_length,
                     context_length=context_length,
                     trainer=trainer,
                     **estimator_parameters,
                 )
+    elif dl_model_name == "transformer":
+        estimator = Transformer_gluonts_linear_means(
+            mean_layer,
+            freq=frequency,
+            distr_output=StudentTOutput(),
+            prediction_length=prediction_length,
+            context_length=context_length,
+            trainer=trainer,
+            **estimator_parameters,
+        )
+
     else:
         raise ValueError(f"Unknown estimator name: {dl_model_name}")
 
