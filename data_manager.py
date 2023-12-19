@@ -252,11 +252,13 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var in zip(
+                    for data_entry, mean, var, train_param in zip(
                         self.train_dataset,
                         self.train_means,
                         self.train_vars,
+                        self.train_params,
                     )
                 ],
                 freq=self.freq,
@@ -267,11 +269,13 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
+                        "feat_static_real": np.concatenate(train_param),
                     }
-                    for data_entry, mean, var in zip(
+                    for data_entry, mean, var, train_param in zip(
                         self.test_dataset,
                         self.test_means,
                         self.test_vars,
+                        self.train_params,
                     )
                 ],
                 freq=self.freq,

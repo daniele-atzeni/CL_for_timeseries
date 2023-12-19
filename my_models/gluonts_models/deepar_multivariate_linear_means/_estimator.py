@@ -12,8 +12,9 @@
 # permissions and limitations under the License.
 
 from functools import partial
-from typing import List, Optional
+from typing import List, Optional, Type
 
+import numpy as np
 from mxnet.gluon import HybridBlock
 
 from gluonts.core.component import validated
@@ -24,9 +25,10 @@ from gluonts.dataset.loader import (
     TrainDataLoader,
     ValidationDataLoader,
 )
+from gluonts.dataset.stat import calculate_dataset_statistics
 from gluonts.model.predictor import Predictor
 from gluonts.mx.batchify import batchify
-from gluonts.mx.distribution import DistributionOutput, MultivariateGaussianOutput
+from gluonts.mx.distribution import DistributionOutput, StudentTOutput
 from gluonts.mx.model.estimator import GluonEstimator
 from gluonts.mx.model.predictor import RepresentableBlockPredictor
 from gluonts.mx.trainer import Trainer
@@ -53,23 +55,24 @@ from gluonts.transform import (
     ValidationSplitSampler,
     VstackFeatures,
 )
+from gluonts.transform.feature import (
+    DummyValueImputation,
+    MissingValueImputation,
+)
 
-from ._network import TransformerPredictionNetwork, TransformerTrainingNetwork
-from .trans_decoder import TransformerDecoder
-from .trans_encoder import TransformerEncoder
-
-import numpy as np  ###
+from ._network import DeepARPredictionNetwork, DeepARTrainingNetwork
 
 
-class TransformerEstimator(GluonEstimator):
+class DeepAREstimator(GluonEstimator):
     """
-    Construct a Transformer estimator.
+    Construct a DeepAR estimator.
 
-    This implements a Transformer model, close to the one described in
-    [Vaswani2017]_.
+    This implements an RNN-based model, close to the one described in
+    [SFG17]_.
 
-    .. [Vaswani2017] Vaswani, Ashish, et al. "Attention is all you need."
-        Advances in neural information processing systems. 2017.
+    *Note:* the code of this model is unrelated to the implementation behind
+    `SageMaker's DeepAR Forecasting Algorithm
+    <https://docs.aws.amazon.com/sagemaker/latest/dg/deepar.html>`_.
 
     Parameters
     ----------
@@ -77,40 +80,42 @@ class TransformerEstimator(GluonEstimator):
         Frequency of the data to train on and predict
     prediction_length
         Length of the prediction horizon
+    trainer
+        Trainer object to be used (default: Trainer())
     context_length
         Number of steps to unroll the RNN for before computing predictions
         (default: None, in which case context_length = prediction_length)
-    trainer
-        Trainer object to be used (default: Trainer())
+    num_layers
+        Number of RNN layers (default: 2)
+    num_cells
+        Number of RNN cells for each layer (default: 40)
+    cell_type
+        Type of recurrent cells to use (available: 'lstm' or 'gru';
+        default: 'lstm')
+    dropoutcell_type
+        Type of dropout cells to use
+        (available: 'ZoneoutCell', 'RNNZoneoutCell', 'VariationalDropoutCell'
+        or 'VariationalZoneoutCell'; default: 'ZoneoutCell')
     dropout_rate
         Dropout regularization parameter (default: 0.1)
+    use_feat_dynamic_real
+        Whether to use the ``feat_dynamic_real`` field from the data
+        (default: False)
+    use_feat_static_cat
+        Whether to use the ``feat_static_cat`` field from the data
+        (default: False)
+    use_feat_static_real
+        Whether to use the ``feat_static_real`` field from the data
+        (default: False)
     cardinality
-        Number of values of the each categorical feature (default: [1])
+        Number of values of each categorical feature.
+        This must be set if ``use_feat_static_cat == True`` (default: None)
     embedding_dimension
-        Dimension of the embeddings for categorical features (the same
-        dimension is used for all embeddings, default: 5)
+        Dimension of the embeddings for categorical features
+        (default: [min(50, (cat+1)//2) for cat in cardinality])
     distr_output
         Distribution to use to evaluate observations and sample predictions
         (default: StudentTOutput())
-    model_dim
-        Dimension of the transformer network, i.e., embedding dimension of the
-        input (default: 32)
-    inner_ff_dim_scale
-        Dimension scale of the inner hidden layer of the transformer's
-        feedforward network (default: 4)
-    pre_seq
-        Sequence that defined operations of the processing block before the
-        main transformer network. Available operations: 'd' for dropout, 'r'
-        for residual connections and 'n' for normalization (default: 'dn')
-    post_seq
-        Sequence that defined operations of the processing block in and after
-        the main transformer network. Available operations: 'd' for
-        dropout, 'r' for residual connections and 'n' for normalization
-        (default: 'drn').
-    act_type
-        Activation type of the transformer network (default: 'softrelu')
-    num_heads
-        Number of heads in the multi-head attention (default: 8)
     scaling
         Whether to automatically scale the target values (default: true)
     lags_seq
@@ -124,104 +129,143 @@ class TransformerEstimator(GluonEstimator):
         Number of evaluation samples per time series to increase parallelism
         during inference. This is a model optimization that does not affect the
         accuracy (default: 100)
+    imputation_method
+        One of the methods from ImputationStrategy
     train_sampler
         Controls the sampling of windows during training.
     validation_sampler
         Controls the sampling of windows during validation.
+    alpha
+        The scaling coefficient of the activation regularization
+    beta
+        The scaling coefficient of the temporal activation regularization
     batch_size
         The size of the batches to be used training and prediction.
+    minimum_scale
+        The minimum scale that is returned by the MeanScaler
+    default_scale
+        Default scale that is applied if the context length window is
+        completely unobserved. If not set, the scale in this case will be
+        the mean scale in the batch.
+    impute_missing_values
+        Whether to impute the missing values during training by using the
+        current model parameters. Recommended if the dataset contains many
+        missing values. However, this is a lot slower than the default mode.
+    num_imputation_samples
+        How many samples to use to impute values when
+        impute_missing_values=True
     """
 
     @validated()
     def __init__(
         self,
-        mean_layer,  ###
-        n_features: int,  ###
         freq: str,
         prediction_length: int,
-        distr_output: DistributionOutput,
-        context_length: Optional[int] = None,
         trainer: Trainer = Trainer(),
+        context_length: Optional[int] = None,
+        num_layers: int = 2,
+        num_cells: int = 40,
+        cell_type: str = "lstm",
+        dropoutcell_type: str = "ZoneoutCell",
         dropout_rate: float = 0.1,
+        use_feat_dynamic_real: bool = False,
+        use_feat_static_cat: bool = False,
+        use_feat_static_real: bool = False,
         cardinality: Optional[List[int]] = None,
-        embedding_dimension: int = 20,
-        model_dim: int = 32,
-        inner_ff_dim_scale: int = 4,
-        pre_seq: str = "dn",
-        post_seq: str = "drn",
-        act_type: str = "softrelu",
-        num_heads: int = 8,
-        scaling: bool = False,  ###
+        embedding_dimension: Optional[List[int]] = None,
+        distr_output: DistributionOutput = StudentTOutput(),
+        scaling: bool = True,
         lags_seq: Optional[List[int]] = None,
         time_features: Optional[List[TimeFeature]] = None,
-        # use_feat_dynamic_real: bool = True, ### we won't use this because we always want to use feat_dynamic_real
-        use_feat_static_cat: bool = False,
         num_parallel_samples: int = 100,
+        imputation_method: Optional[MissingValueImputation] = None,
         train_sampler: Optional[InstanceSampler] = None,
         validation_sampler: Optional[InstanceSampler] = None,
+        dtype: Type = np.float32,
+        alpha: float = 0.0,
+        beta: float = 0.0,
         batch_size: int = 32,
+        default_scale: Optional[float] = None,
+        minimum_scale: float = 1e-10,
+        impute_missing_values: bool = False,
+        num_imputation_samples: int = 1,
     ) -> None:
-        super().__init__(trainer=trainer, batch_size=batch_size)
+        super().__init__(trainer=trainer, batch_size=batch_size, dtype=dtype)
 
-        assert prediction_length > 0, "The value of `prediction_length` should be > 0"
+        assert (
+            prediction_length > 0
+        ), "The value of `prediction_length` should be > 0"
         assert (
             context_length is None or context_length > 0
         ), "The value of `context_length` should be > 0"
-        assert dropout_rate >= 0, "The value of `dropout_rate` should be >= 0"
+        assert num_layers > 0, "The value of `num_layers` should be > 0"
+        assert num_cells > 0, "The value of `num_cells` should be > 0"
+        supported_dropoutcell_types = [
+            "ZoneoutCell",
+            "RNNZoneoutCell",
+            "VariationalDropoutCell",
+            "VariationalZoneoutCell",
+        ]
         assert (
-            cardinality is not None or not use_feat_static_cat
-        ), "You must set `cardinality` if `use_feat_static_cat=True`"
+            dropoutcell_type in supported_dropoutcell_types
+        ), f"`dropoutcell_type` should be one of {supported_dropoutcell_types}"
+        assert dropout_rate >= 0, "The value of `dropout_rate` should be >= 0"
         assert cardinality is None or all(
             [c > 0 for c in cardinality]
         ), "Elements of `cardinality` should be > 0"
-        assert (
-            embedding_dimension > 0
-        ), "The value of `embedding_dimension` should be > 0"
+        assert embedding_dimension is None or all(
+            [e > 0 for e in embedding_dimension]
+        ), "Elements of `embedding_dimension` should be > 0"
         assert (
             num_parallel_samples > 0
         ), "The value of `num_parallel_samples` should be > 0"
+        assert alpha >= 0, "The value of `alpha` should be >= 0"
+        assert beta >= 0, "The value of `beta` should be >= 0"
 
-        self.mean_layer = mean_layer  ###
-        self.n_features = n_features  ###
-
-        self.prediction_length = prediction_length
         self.context_length = (
             context_length if context_length is not None else prediction_length
         )
+        self.prediction_length = prediction_length
         self.distr_output = distr_output
+        self.distr_output.dtype = dtype
+        self.num_layers = num_layers
+        self.num_cells = num_cells
+        self.cell_type = cell_type
+        self.dropoutcell_type = dropoutcell_type
         self.dropout_rate = dropout_rate
-        # self.use_feat_dynamic_real = use_feat_dynamic_real ## my code here
+        self.use_feat_dynamic_real = use_feat_dynamic_real
         self.use_feat_static_cat = use_feat_static_cat
-        self.cardinality = cardinality if use_feat_static_cat else [1]
-        self.embedding_dimension = embedding_dimension
-        self.num_parallel_samples = num_parallel_samples
+        self.use_feat_static_real = use_feat_static_real
+        self.cardinality = (
+            cardinality if cardinality and use_feat_static_cat else [1]
+        )
+        self.embedding_dimension = (
+            embedding_dimension
+            if embedding_dimension is not None
+            else [min(50, (cat + 1) // 2) for cat in self.cardinality]
+        )
+        self.scaling = scaling
         self.lags_seq = (
-            lags_seq if lags_seq is not None else get_lags_for_frequency(freq_str=freq)
+            lags_seq
+            if lags_seq is not None
+            else get_lags_for_frequency(freq_str=freq)
         )
         self.time_features = (
             time_features
             if time_features is not None
             else time_features_from_frequency_str(freq)
         )
+
         self.history_length = self.context_length + max(self.lags_seq)
-        self.scaling = scaling
 
-        self.config = {
-            "model_dim": model_dim,
-            "pre_seq": pre_seq,
-            "post_seq": post_seq,
-            "dropout_rate": dropout_rate,
-            "inner_ff_dim_scale": inner_ff_dim_scale,
-            "act_type": act_type,
-            "num_heads": num_heads,
-        }
+        self.num_parallel_samples = num_parallel_samples
 
-        self.encoder = TransformerEncoder(
-            self.context_length, self.config, prefix="enc_"
+        self.imputation_method = (
+            imputation_method
+            if imputation_method is not None
+            else DummyValueImputation(self.distr_output.value_in_support)
         )
-        self.decoder = TransformerDecoder(
-            self.prediction_length, self.config, prefix="dec_"
-        )
+
         self.train_sampler = (
             train_sampler
             if train_sampler is not None
@@ -235,13 +279,29 @@ class TransformerEstimator(GluonEstimator):
             else ValidationSplitSampler(min_future=prediction_length)
         )
 
+        self.alpha = alpha
+        self.beta = beta
+        self.num_imputation_samples = num_imputation_samples
+        self.default_scale = default_scale
+        self.minimum_scale = minimum_scale
+        self.impute_missing_values = impute_missing_values
+
+    @classmethod
+    def derive_auto_fields(cls, train_iter):
+        stats = calculate_dataset_statistics(train_iter)
+
+        return {
+            "use_feat_dynamic_real": stats.num_feat_dynamic_real > 0,
+            "use_feat_static_cat": bool(stats.feat_static_cat),
+            "cardinality": [len(cats) for cats in stats.feat_static_cat],
+        }
+
     def create_transformation(self) -> Transformation:
-        remove_field_names = [
-            FieldName.FEAT_DYNAMIC_CAT,
-            FieldName.FEAT_STATIC_REAL,
-        ]
-        # if not self.use_feat_dynamic_real: ## my code here, we don't want this
-        #    remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
+        remove_field_names = [FieldName.FEAT_DYNAMIC_CAT]
+        if not self.use_feat_static_real:
+            remove_field_names.append(FieldName.FEAT_STATIC_REAL)
+        if not self.use_feat_dynamic_real:
+            remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
 
         return Chain(
             [RemoveFields(field_names=remove_field_names)]
@@ -250,16 +310,37 @@ class TransformerEstimator(GluonEstimator):
                 if not self.use_feat_static_cat
                 else []
             )
+            + (
+                [
+                    SetField(
+                        output_field=FieldName.FEAT_STATIC_REAL, value=[0.0]
+                    )
+                ]
+                if not self.use_feat_static_real
+                else []
+            )
             + [
-                AsNumpyArray(field=FieldName.FEAT_STATIC_CAT, expected_ndim=1),
+                AsNumpyArray(
+                    field=FieldName.FEAT_STATIC_CAT,
+                    expected_ndim=1,
+                    dtype=self.dtype,
+                ),
+                AsNumpyArray(
+                    field=FieldName.FEAT_STATIC_REAL,
+                    expected_ndim=1,
+                    dtype=self.dtype,
+                ),
                 AsNumpyArray(
                     field=FieldName.TARGET,
                     # in the following line, we add 1 for the time dimension
                     expected_ndim=1 + len(self.distr_output.event_shape),
+                    dtype=self.dtype,
                 ),
                 AddObservedValuesIndicator(
                     target_field=FieldName.TARGET,
                     output_field=FieldName.OBSERVED_VALUES,
+                    dtype=self.dtype,
+                    imputation_method=self.imputation_method,
                 ),
                 AddTimeFeatures(
                     start_field=FieldName.START,
@@ -273,12 +354,18 @@ class TransformerEstimator(GluonEstimator):
                     output_field=FieldName.FEAT_AGE,
                     pred_length=self.prediction_length,
                     log_scale=True,
+                    dtype=self.dtype,
                 ),
                 VstackFeatures(
                     output_field=FieldName.FEAT_TIME,
-                    input_fields=[FieldName.FEAT_TIME, FieldName.FEAT_AGE],
+                    input_fields=[FieldName.FEAT_TIME, FieldName.FEAT_AGE]
+                    + (
+                        [FieldName.FEAT_DYNAMIC_REAL]
+                        if self.use_feat_dynamic_real
+                        else []
+                    ),
                 ),
-            ]  # type:ignore   not my code
+            ]
         )
 
     def _create_instance_splitter(self, mode: str):
@@ -299,10 +386,10 @@ class TransformerEstimator(GluonEstimator):
             past_length=self.history_length,
             future_length=self.prediction_length,
             time_series_fields=[
-                FieldName.FEAT_DYNAMIC_REAL,
                 FieldName.FEAT_TIME,
                 FieldName.OBSERVED_VALUES,
             ],
+            dummy_value=self.distr_output.value_in_support,
         )
 
     def create_training_data_loader(
@@ -310,7 +397,7 @@ class TransformerEstimator(GluonEstimator):
         data: Dataset,
         **kwargs,
     ) -> DataLoader:
-        input_names = get_hybrid_forward_input_names(TransformerTrainingNetwork)
+        input_names = get_hybrid_forward_input_names(DeepARTrainingNetwork)
         instance_splitter = self._create_instance_splitter("training")
         return TrainDataLoader(
             dataset=data,
@@ -325,7 +412,7 @@ class TransformerEstimator(GluonEstimator):
         data: Dataset,
         **kwargs,
     ) -> DataLoader:
-        input_names = get_hybrid_forward_input_names(TransformerTrainingNetwork)
+        input_names = get_hybrid_forward_input_names(DeepARTrainingNetwork)
         instance_splitter = self._create_instance_splitter("validation")
         return ValidationDataLoader(
             dataset=data,
@@ -334,20 +421,28 @@ class TransformerEstimator(GluonEstimator):
             stack_fn=partial(batchify, ctx=self.trainer.ctx, dtype=self.dtype),
         )
 
-    def create_training_network(self) -> TransformerTrainingNetwork:
-        return TransformerTrainingNetwork(
-            mean_layer=self.mean_layer,  ###
-            n_features=self.n_features,  ###
-            encoder=self.encoder,
-            decoder=self.decoder,
+    def create_training_network(self) -> DeepARTrainingNetwork:
+        return DeepARTrainingNetwork(
+            num_layers=self.num_layers,
+            num_cells=self.num_cells,
+            cell_type=self.cell_type,
             history_length=self.history_length,
             context_length=self.context_length,
             prediction_length=self.prediction_length,
             distr_output=self.distr_output,
-            cardinality=self.cardinality,  # type: ignore  not my code
+            dropoutcell_type=self.dropoutcell_type,
+            dropout_rate=self.dropout_rate,
+            cardinality=self.cardinality,
             embedding_dimension=self.embedding_dimension,
             lags_seq=self.lags_seq,
             scaling=self.scaling,
+            dtype=self.dtype,
+            alpha=self.alpha,
+            beta=self.beta,
+            num_imputation_samples=self.num_imputation_samples,
+            default_scale=self.default_scale,
+            minimum_scale=self.minimum_scale,
+            impute_missing_values=self.impute_missing_values,
         )
 
     def create_predictor(
@@ -355,20 +450,26 @@ class TransformerEstimator(GluonEstimator):
     ) -> Predictor:
         prediction_splitter = self._create_instance_splitter("test")
 
-        prediction_network = TransformerPredictionNetwork(
-            mean_layer=self.mean_layer,  ###
-            n_features=self.n_features,  ###
-            encoder=self.encoder,
-            decoder=self.decoder,
+        prediction_network = DeepARPredictionNetwork(
+            num_parallel_samples=self.num_parallel_samples,
+            num_layers=self.num_layers,
+            num_cells=self.num_cells,
+            cell_type=self.cell_type,
             history_length=self.history_length,
             context_length=self.context_length,
             prediction_length=self.prediction_length,
             distr_output=self.distr_output,
+            dropoutcell_type=self.dropoutcell_type,
+            dropout_rate=self.dropout_rate,
             cardinality=self.cardinality,
             embedding_dimension=self.embedding_dimension,
             lags_seq=self.lags_seq,
             scaling=self.scaling,
-            num_parallel_samples=self.num_parallel_samples,
+            dtype=self.dtype,
+            num_imputation_samples=self.num_imputation_samples,
+            default_scale=self.default_scale,
+            minimum_scale=self.minimum_scale,
+            impute_missing_values=self.impute_missing_values,
         )
 
         copy_parameters(trained_network, prediction_network)
@@ -379,4 +480,5 @@ class TransformerEstimator(GluonEstimator):
             batch_size=self.batch_size,
             prediction_length=self.prediction_length,
             ctx=self.trainer.ctx,
+            dtype=self.dtype,
         )

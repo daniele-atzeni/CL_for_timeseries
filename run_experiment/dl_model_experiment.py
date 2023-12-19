@@ -12,7 +12,10 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader
 
 from my_models.gluonts_models.feedforward_linear_means._estimator import (
-    SimpleFeedForwardEstimator as FF_gluonts,
+    SimpleFeedForwardEstimator as FF_gluonts_linear,
+)
+from my_models.gluonts_models.feedforward_gas_means._estimator import (
+    SimpleFeedForwardEstimator as FF_gluonts_gas,
 )
 from my_models.gluonts_models.feedforward_multivariate_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate_linear,
@@ -22,6 +25,9 @@ from my_models.gluonts_models.feedforward_multivariate_gas_means._estimator impo
 )
 from my_models.gluonts_models.transformer_linear_means._estimator import (
     TransformerEstimator as Transformer_gluonts_linear_means,
+)
+from my_models.gluonts_models.transformer_multivariate_linear_means._estimator import (
+    TransformerEstimator as Transformer_gluonts_multivariate_linear,
 )
 
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
@@ -35,6 +41,137 @@ import pickle
 import json
 
 from tqdm import tqdm
+
+
+class GasHybridBlock(mx.gluon.HybridBlock):
+    def __init__(self, normalizer, n_features, prediction_length, **kwargs):
+        super(GasHybridBlock, self).__init__(**kwargs)
+        self.normalizer = normalizer
+        self.n_features = n_features
+        self.prediction_length = prediction_length
+
+    def hybrid_forward(self, F, x, means, vars, params):
+        # x: (batch, context_length, n_features) or (batch, context_length)
+        # means: (batch, context_length, n_features)
+        # vars: (batch, context_length, n_features)
+        # params: (batch, n_features * (2 + n_gas_params))  contains also initial means and vars
+        # each (n_static_params + 2) elements represent initial values and gas_params for a single feature
+        gas_params = [
+            params.slice(
+                begin=(None, 2 + j),
+                end=(None, None),
+                step=(None, 2 + self.normalizer.n_static_params),
+            )  # (batch, n_features)
+            for j in range(self.normalizer.n_static_params)
+        ]
+        if self.n_features == 1:
+            last_x = x.slice(begin=(None, -1), end=(None, None)).squeeze()  # (batch)
+        else:
+            last_x = x.slice(
+                begin=(None, -1, None), end=(None, None, None)
+            ).squeeze()  # (batch, n_features)
+        last_mean = means.slice(
+            begin=(None, -1, None), end=(None, None, None)
+        ).squeeze()  # (batch, n_features) or (batch)
+        last_var = vars.slice(
+            begin=(None, -1, None), end=(None, None, None)
+        ).squeeze()  # (batch, n_features) or (batch)
+
+        pred_means = []
+        for _ in range(self.prediction_length):
+            new_mean, new_var = self.normalizer.update_mean_and_var(
+                last_x, last_mean, last_var, *gas_params
+            )  # (batch, n_features), (batch, n_features) or (batch), (batch)
+            pred_means.append(new_mean)
+            last_x = new_mean
+            last_mean = new_mean
+            last_var = F.ones_like(new_var) * 10  # new var
+        return F.stack(*pred_means, axis=1)
+
+
+def initialize_estimator(
+    dl_model_name,
+    num_features,
+    trained_mean_layer,
+    mean_layer,
+    prediction_length,
+    context_length,
+    frequency,
+    trainer,
+    estimator_parameters,
+):
+    if dl_model_name == "feedforward":
+        if num_features == 1:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                estimator = FF_gluonts_gas(
+                    mean_layer,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+            else:
+                estimator = FF_gluonts_linear(
+                    mean_layer,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+        else:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                estimator = FF_gluonts_multivariate_gas(
+                    mean_layer,
+                    num_features,
+                    distr_output=MultivariateGaussianOutput(dim=num_features),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+            else:
+                estimator = FF_gluonts_multivariate_linear(
+                    mean_layer,
+                    num_features,
+                    distr_output=MultivariateGaussianOutput(dim=num_features),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+    elif dl_model_name == "transformer":
+        if num_features == 1:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                raise ValueError("Transformer gas not implemented.")
+            else:
+                estimator = Transformer_gluonts_linear_means(
+                    mean_layer,
+                    freq=frequency,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+        else:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                raise ValueError("Transformer gas not implemented.")
+            else:
+                estimator = Transformer_gluonts_multivariate_linear(
+                    mean_layer,
+                    num_features,
+                    freq=frequency,
+                    distr_output=MultivariateGaussianOutput(dim=num_features),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+    else:
+        raise ValueError(f"Unknown estimator name: {dl_model_name}")
+    return estimator
 
 
 def experiment_gluonts(
@@ -80,11 +217,7 @@ def experiment_gluonts(
             )
         )
     elif isinstance(trained_mean_layer, GASNormalizer):
-        mean_layer = mx.gluon.nn.HybridLambda(
-            lambda F, x, gas_param: trained_mean_layer.update_mean_and_var(
-                x, *gas_param
-            )
-        )
+        mean_layer = GasHybridBlock(trained_mean_layer, n_features, prediction_length)
     else:
         raise ValueError(
             f"Unknown mean layer type: {type(trained_mean_layer)} {trained_mean_layer}"
@@ -97,16 +230,38 @@ def experiment_gluonts(
     # estimator initialization
     print("Initializing the estimator...")
     trainer = Trainer(**trainer_parameters)
+    estimator = initialize_estimator(
+        dl_model_name,
+        n_features,
+        trained_mean_layer,
+        mean_layer,
+        prediction_length,
+        context_length,
+        frequency,
+        trainer,
+        estimator_parameters,
+    )
+    """
     if dl_model_name == "feedforward":
         if n_features == 1:
-            estimator = FF_gluonts(
-                mean_layer,
-                distr_output=StudentTOutput(),
-                prediction_length=prediction_length,
-                context_length=context_length,
-                trainer=trainer,
-                **estimator_parameters,
-            )
+            if isinstance(trained_mean_layer, GASNormalizer):
+                estimator = FF_gluonts_gas(
+                    mean_layer,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+            else:
+                estimator = FF_gluonts_linear(
+                    mean_layer,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
         else:
             if isinstance(trained_mean_layer, GASNormalizer):
                 estimator = FF_gluonts_multivariate_gas(
@@ -129,19 +284,30 @@ def experiment_gluonts(
                     **estimator_parameters,
                 )
     elif dl_model_name == "transformer":
-        estimator = Transformer_gluonts_linear_means(
-            mean_layer,
-            freq=frequency,
-            distr_output=StudentTOutput(),
-            prediction_length=prediction_length,
-            context_length=context_length,
-            trainer=trainer,
-            **estimator_parameters,
-        )
-
+        if n_features == 1:
+            estimator = Transformer_gluonts_linear_means(
+                mean_layer,
+                freq=frequency,
+                distr_output=StudentTOutput(),
+                prediction_length=prediction_length,
+                context_length=context_length,
+                trainer=trainer,
+                **estimator_parameters,
+            )
+        else:
+            estimator = Transformer_gluonts_multivariate_linear(
+                mean_layer,
+                n_features,
+                freq=frequency,
+                distr_output=MultivariateGaussianOutput(dim=n_features),
+                prediction_length=prediction_length,
+                context_length=context_length,
+                trainer=trainer,
+                **estimator_parameters,
+            )
     else:
         raise ValueError(f"Unknown estimator name: {dl_model_name}")
-
+    """
     # TRAIN THE ESTIMATOR
     print("Training the estimator...")
     predictor = estimator.train(gluonts_train_dataset)

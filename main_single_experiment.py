@@ -7,7 +7,7 @@ if __name__ == "__main__":
     DATASET_TYPE = "gluonts"  # "synthetic"
     DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
     DATASET_PARAMS = real_world_data_params  # synthetic_generation_params
-    DATASET_PARAMS["multivariate"] = True  # or False
+    DATASET_PARAMS["multivariate"] = False  # or False
     DATASET_FILE_FOLDER = None  # "tsf_data"
     # if None, dataset is obtained from GluonTS, if str from file
 

@@ -36,6 +36,7 @@ class TransformerNetwork(mx.gluon.HybridBlock):
     def __init__(
         self,
         mean_layer,  ###
+        n_features,  ###
         encoder: TransformerEncoder,
         decoder: TransformerDecoder,
         history_length: int,
@@ -51,6 +52,7 @@ class TransformerNetwork(mx.gluon.HybridBlock):
         super().__init__(**kwargs)
 
         self.mean_layer = mean_layer  ###
+        self.n_features = n_features  ###
         self.history_length = history_length
         self.context_length = context_length
         self.prediction_length = prediction_length
@@ -213,7 +215,15 @@ class TransformerNetwork(mx.gluon.HybridBlock):
                 -1,
                 subsequences_length,
                 len(self.lags_seq) * prod(self.target_shape),
+                self.n_features,
             ),
+        )
+
+        time_feat = F.expand_dims(time_feat, axis=-1).repeat(
+            axis=-1, repeats=self.n_features
+        )
+        repeated_static_feat = repeated_static_feat.expand_dims(axis=-1).repeat(
+            axis=-1, repeats=self.n_features
         )
 
         # (batch_size, sub_seq_len, input_dim)
@@ -454,7 +464,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
 
             # compute likelihood of target given the predicted parameters
             distr = self.distr_output.distribution(
-                new_distr_args, scale=repeated_scale  ###
+                new_distr_args, scale=None  # scale=repeated_scale  ###
             )
 
             # (batch_size * num_samples, 1, *target_shape)

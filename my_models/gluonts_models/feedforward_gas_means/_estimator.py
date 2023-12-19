@@ -138,6 +138,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
                 FieldName.START,
                 FieldName.TARGET,
                 FieldName.FEAT_DYNAMIC_REAL,
+                FieldName.FEAT_STATIC_REAL,
             ],
             allow_missing=True,
         )
@@ -166,8 +167,8 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             past_length=self.context_length,
             future_length=self.prediction_length,
             time_series_fields=[
-                FieldName.FEAT_DYNAMIC_REAL,  ## my code here
-                # FieldName.OBSERVED_VALUES,
+                FieldName.FEAT_DYNAMIC_REAL,
+                FieldName.FEAT_STATIC_REAL,
             ],
         )
 
