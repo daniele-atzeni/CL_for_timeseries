@@ -12,7 +12,7 @@ class GASNormalizer:
     """
 
     def __init__(self) -> None:
-        pass
+        self.n_static_params = 0  # need this for the creation of the mean layer
 
     def update_mean_and_var(
         self,
@@ -133,6 +133,8 @@ class GASGaussian(GASNormalizer):
     def __init__(self, eps: float = 1e-9) -> None:
         super(GASGaussian, self).__init__()
         self.eps = eps
+
+        self.n_static_params = 2
 
     def update_mean_and_var(
         self,
@@ -269,6 +271,8 @@ class GASTStudent(GASNormalizer):
         self.mean_strength = mean_strength
         self.var_strength = var_strength
         self.eps = eps
+
+        self.n_static_params = 7
 
     def update_mean_and_var(
         self,

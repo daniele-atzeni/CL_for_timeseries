@@ -81,7 +81,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         mlp_outputs (batch, pred_length, last_net_hidden_dim)
         """
         # retrieve features
-        # dynamic
+        # first n_features are means, second n_features are vars
         means = past_feat_dynamic_real.slice(
             begin=(None, None, 0 * self.n_features),
             end=(None, None, 1 * self.n_features),
@@ -90,63 +90,32 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
             begin=(None, None, 1 * self.n_features),
             end=(None, None, 2 * self.n_features),
         )
-        # static
-        params = feat_static_real.reshape((-1, self.n_features, -1))
 
         # normalize past_target
-        past_target = (past_target - means) / (
-            vars.sqrt() + 1e-8  # type:ignore MXNet issue
-        )
-        past_target = past_target.flatten()
+        past_target = (past_target - means) / (F.sqrt(vars) + 1e-8)
 
-        mlp_outputs = self.mlp(past_target)
+        # compute mean layer prediction
+        pred_means = self.mean_layer(past_target, means, vars, feat_static_real)
 
+        # compute mlp predictions
+        flatten_past_target = past_target.flatten()
+        mlp_outputs = self.mlp(flatten_past_target)
+
+        # compute distribution parameters predictions
         distr_args = self.distr_args_proj(mlp_outputs)
         # with multivariate gaussian:
         # mu (batch, pred_length, n_feat), L (batch, pred_length, n_feat, n_feat)
+
+        # add mean layer predictions to the predicted mean parameter of the distribution
+        # mean parameter in our case is the 0th element of distr_args
+        distr_args = tuple(
+            [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
+        )
 
         scale = None
         loc = None
         # Setting this to None avoids the call to AffineTransformedDistribution
         # which causes problems in the multivariate case
-
-        # "denormalization"
-        pred_means = []
-        for batch, past_target_el in enumerate(past_target):
-            batch_means = []
-            for feat in range(self.n_features):
-                prev_ts = past_target_el.slice(begin=(-1, feat), end=(None, feat + 1))
-                prev_mean = means.slice(
-                    begin=(batch, -1, feat), end=(batch + 1, None, feat + 1)
-                )
-                prev_var = vars.slice(
-                    begin=(batch, -1, feat), end=(batch + 1, None, feat + 1)
-                )
-                feat_means = []
-                for pred_ind in range(self.prediction_length):
-                    gas_param = [
-                        params.slice(
-                            begin=(batch, feat, i), end=(batch + 1, feat + 1, i + 1)
-                        ).squeeze()
-                        for i in range(7)
-                    ]
-                    gas_input = [prev_mean, prev_var] + gas_param
-
-                    mean, var = self.mean_layer(prev_ts, gas_input)
-
-                    feat_means.append(mean)
-                    prev_ts = mean
-                    prev_mean = mean
-                    prev_var = var
-
-                batch_means.append(F.stack(*feat_means, axis=1))
-            pred_means.append(F.stack(*batch_means, axis=-1))
-        pred_means = F.stack(*pred_means, axis=0)
-        # we add mean layer preds to the means predicted by the output distribution
-        # i.e. the 0th element of distr_args
-        distr_args = tuple(
-            [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
-        )
 
         return distr_args, loc, scale  # type:ignore not my code
 

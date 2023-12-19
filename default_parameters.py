@@ -56,6 +56,7 @@ gas_t_stud_params = {
 # MEAN LAYER PARAMS
 # linear
 linear_mean_layer_params = {}
+gas_mean_layer_params = {}
 
 # DL MODEL PARAMS
 # gluonts
