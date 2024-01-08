@@ -1204,7 +1204,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
         _, state, scale, static_feat, imputed_sequence = self.unroll_encoder(
             F=F,
             feat_static_cat=feat_static_cat,
-            feat_static_real=feat_static_real,
+            feat_static_real=F.zeros_like(feat_static_cat),
             past_time_feat=past_time_feat,
             past_target=past_target,
             past_is_pad=past_is_pad,
@@ -1221,4 +1221,5 @@ class DeepARPredictionNetwork(DeepARNetwork):
             scale=scale,
             begin_states=state,
             past_feat_dynamic_real=past_feat_dynamic_real,  ###
+            feat_static_real=feat_static_real,  ###
         )
