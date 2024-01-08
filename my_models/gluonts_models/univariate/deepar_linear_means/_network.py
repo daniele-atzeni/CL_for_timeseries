@@ -38,6 +38,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
     @validated()
     def __init__(
         self,
+        mean_layer: mx.gluon.HybridBlock,
         num_layers: int,
         num_cells: int,
         cell_type: str,
@@ -59,6 +60,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
+        self.mean_layer = mean_layer  ###
         self.num_layers = num_layers
         self.num_cells = num_cells
         self.cell_type = cell_type
@@ -74,13 +76,10 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         self.dtype = dtype
 
         assert len(cardinality) == len(embedding_dimension), (
-            "embedding_dimension should be a list with the same size as"
-            " cardinality"
+            "embedding_dimension should be a list with the same size as" " cardinality"
         )
 
-        assert len(set(lags_seq)) == len(
-            lags_seq
-        ), "no duplicated lags allowed!"
+        assert len(set(lags_seq)) == len(lags_seq), "no duplicated lags allowed!"
         lags_seq.sort()
 
         self.lags_seq = lags_seq
@@ -194,9 +193,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
             begin_index = -lag_index - subsequences_length
             end_index = -lag_index if lag_index > 0 else None
             lagged_values.append(
-                F.slice_axis(
-                    sequence, axis=1, begin=begin_index, end=end_index
-                )
+                F.slice_axis(sequence, axis=1, begin=begin_index, end=end_index)
             )
 
         return F.stack(*lagged_values, axis=-1)
@@ -553,9 +550,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         # scale is computed on the context length last units of the past target
         # scale shape is (batch_size, 1, *target_shape)
         _, scale = self.scaler(
-            past_target.slice_axis(
-                axis=1, begin=-self.context_length, end=None
-            ),
+            past_target.slice_axis(axis=1, begin=-self.context_length, end=None),
             past_observed_values.slice_axis(
                 axis=1, begin=-self.context_length, end=None
             ),
@@ -601,9 +596,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         begin_state = self.rnn.begin_state(
             func=F.zeros,
             dtype=self.dtype,
-            batch_size=inputs.shape[0]
-            if isinstance(inputs, mx.nd.NDArray)
-            else 0,
+            batch_size=inputs.shape[0] if isinstance(inputs, mx.nd.NDArray) else 0,
         )
 
         unroll_results = self.imputation_rnn_unroll(
@@ -687,7 +680,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
                     begin=self.history_length - self.context_length,
                     end=None,
                 ),
-                F.zeros_like(future_observed_values),
+                F.squeeze(F.zeros_like(future_observed_values)),
                 dim=1,
             )
 
@@ -707,9 +700,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         # scale is computed on the context length last units of the past target
         # scale shape is (batch_size, 1, *target_shape)
         _, scale = self.scaler(
-            past_target.slice_axis(
-                axis=1, begin=-self.context_length, end=None
-            ),
+            past_target.slice_axis(axis=1, begin=-self.context_length, end=None),
             past_observed_values.slice_axis(
                 axis=1, begin=-self.context_length, end=None
             ),
@@ -755,9 +746,7 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         begin_state = self.rnn.begin_state(
             func=F.zeros,
             dtype=self.dtype,
-            batch_size=inputs.shape[0]
-            if isinstance(inputs, mx.nd.NDArray)
-            else 0,
+            batch_size=inputs.shape[0] if isinstance(inputs, mx.nd.NDArray) else 0,
         )
         state = begin_state
         # This is a dummy computation to avoid deferred initialization error
@@ -810,6 +799,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
 
     def distribution(
         self,
+        pred_means: Tensor,
         feat_static_cat: Tensor,
         feat_static_real: Tensor,
         past_time_feat: Tensor,
@@ -841,6 +831,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
             (optional) when return_rnn_outputs=True, rnn_outputs will be
             returned so that it could be used for regularization
         """
+
         # unroll the decoder in "training mode"
         # i.e. by providing future data as well
         F = getF(feat_static_cat)
@@ -858,6 +849,24 @@ class DeepARTrainingNetwork(DeepARNetwork):
         )
 
         distr_args = self.proj_distr_args(rnn_outputs)
+
+        """My code here"""
+        # recombine the outputs
+        # distr args dim 1 is context_length + prediction_length
+        # we must add pred means to the last prediction length of the first
+        # element of distr_args
+        distr_args_0 = distr_args[0].slice_axis(
+            axis=1, begin=0, end=self.context_length
+        )
+        distr_args_1 = distr_args[0].slice_axis(
+            axis=1, begin=self.context_length, end=None
+        )
+        distr_args_1 = distr_args_1 + pred_means
+        new_distr_args = F.concat(distr_args_0, distr_args_1, dim=1)
+        distr_args = tuple(
+            [el if i != 0 else new_distr_args for i, el in enumerate(distr_args)]
+        )
+        """"""
 
         # return the output of rnn layers if return_rnn_outputs=True, so that
         # it can be used for regularization later assume no dropout for
@@ -883,6 +892,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
         future_time_feat: Tensor,
         future_target: Tensor,
         future_observed_values: Tensor,
+        past_feat_dynamic_real: Tensor,  ###
     ) -> Tensor:
         """
         Computes the loss for training DeepAR, all inputs tensors representing
@@ -904,6 +914,19 @@ class DeepARTrainingNetwork(DeepARNetwork):
         Returns loss with shape (batch_size, context + prediction_length, 1)
         -------
         """
+        # retrieve the data
+        means = F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1)
+        means = F.squeeze(means)
+        vars = F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2)
+        vars = F.squeeze(vars)
+        # normalize past_target
+        past_target = (past_target - means) / (vars.sqrt() + 1e-8)
+
+        # in this case, the past_* are not shaped as (batch_size, context_len, ...)
+        # but they are longer, so we take only last context_len values
+        means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
+        # mean predictions
+        pred_means = self.mean_layer(means)
 
         outputs = self.distribution(
             feat_static_cat=feat_static_cat,
@@ -916,6 +939,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
             future_target=future_target,
             future_observed_values=future_observed_values,
             return_rnn_outputs=True,
+            pred_means=pred_means,  ###
         )
         # since return_rnn_outputs=True, assert:
         assert isinstance(outputs, tuple)
@@ -997,6 +1021,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
         time_feat: Tensor,
         scale: Tensor,
         begin_states: List,
+        past_feat_dynamic_real: Tensor,  ###
     ) -> Tensor:
         """
         Computes sample paths by unrolling the LSTM starting with a initial
@@ -1023,25 +1048,41 @@ class DeepARPredictionNetwork(DeepARNetwork):
             A tensor containing sampled paths.
             Shape: (batch_size, num_sample_paths, prediction_length).
         """
+        # retrieve the data
+        means = F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1)
+        means = F.squeeze(means)
+        vars = F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2)
+        vars = F.squeeze(vars)
+        # normalize past_target
+        past_target = (past_target - means) / (vars.sqrt() + 1e-8)
 
+        # in this case, the past_* are not shaped as (batch_size, context_len, ...)
+        # but they are longer, so we take only last context_len values
+        means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
+        # mean predictions
+        pred_means = self.mean_layer(means)
+
+        # original code here
         # blows-up the dimension of each tensor to batch_size *
         # self.num_parallel_samples for increasing parallelism
         repeated_past_target = past_target.repeat(
             repeats=self.num_parallel_samples, axis=0
         )
-        repeated_time_feat = time_feat.repeat(
-            repeats=self.num_parallel_samples, axis=0
-        )
+        repeated_time_feat = time_feat.repeat(repeats=self.num_parallel_samples, axis=0)
         repeated_static_feat = static_feat.repeat(
             repeats=self.num_parallel_samples, axis=0
         ).expand_dims(axis=1)
-        repeated_scale = scale.repeat(
+        repeated_scale = scale.repeat(repeats=self.num_parallel_samples, axis=0)
+        repeated_states = [
+            s.repeat(repeats=self.num_parallel_samples, axis=0) for s in begin_states
+        ]
+
+        """My code here"""
+        # doing the same processing of other tensors...
+        repeated_pred_means = pred_means.repeat(
             repeats=self.num_parallel_samples, axis=0
         )
-        repeated_states = [
-            s.repeat(repeats=self.num_parallel_samples, axis=0)
-            for s in begin_states
-        ]
+        """ end """
 
         future_samples = []
 
@@ -1058,9 +1099,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
             )
 
             # (batch_size * num_samples, 1, *target_shape, num_lags)
-            lags_scaled = F.broadcast_div(
-                lags, repeated_scale.expand_dims(axis=-1)
-            )
+            lags_scaled = F.broadcast_div(lags, repeated_scale.expand_dims(axis=-1))
 
             # from (batch_size * num_samples, 1, *target_shape, num_lags)
             # to (batch_size * num_samples, 1, prod(target_shape) * num_lags)
@@ -1091,18 +1130,27 @@ class DeepARPredictionNetwork(DeepARNetwork):
 
             distr_args = self.proj_distr_args(rnn_outputs)
 
-            # compute likelihood of target given the predicted parameters
-            distr = self.distr_output.distribution(
-                distr_args, scale=repeated_scale
+            """My code here"""
+            # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
+            distr_args = tuple(
+                [
+                    el
+                    if i != 0
+                    else el + repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
+                    for i, el in enumerate(distr_args)
+                ]
             )
+            # I hope that in distr_args[0] there is the mean
+            """ end """
+
+            # compute likelihood of target given the predicted parameters
+            distr = self.distr_output.distribution(distr_args, scale=repeated_scale)
 
             # (batch_size * num_samples, 1, *target_shape)
             new_samples = distr.sample(dtype=self.dtype)
 
             # (batch_size * num_samples, seq_len, *target_shape)
-            repeated_past_target = F.concat(
-                repeated_past_target, new_samples, dim=1
-            )
+            repeated_past_target = F.concat(repeated_past_target, new_samples, dim=1)
 
             future_samples.append(new_samples)
 
@@ -1130,6 +1178,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
         # (batch_size, prediction_length, num_features)
         future_time_feat: Tensor,
         past_is_pad: Tensor,
+        past_feat_dynamic_real: Tensor,  ###
     ) -> Tensor:
         """
         Predicts samples, all tensors should have NTC layout.
@@ -1168,4 +1217,5 @@ class DeepARPredictionNetwork(DeepARNetwork):
             static_feat=static_feat,
             scale=scale,
             begin_states=state,
+            past_feat_dynamic_real=past_feat_dynamic_real,  ###
         )

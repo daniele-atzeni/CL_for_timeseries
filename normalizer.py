@@ -57,10 +57,11 @@ class GASNormalizer:
     ) -> list:
         """
         This method computes the ideal initial guesses and static parameters for
-        each of the input time series in the list. Each time series is (len, n_feat).
+        each (feature of) input time series in the list. Each time series is (len, n_feat).
         Ideal results are obtained as minimizers of the negative log likelihood.
 
-        It returns the initial values and static parameters as lists dictionaries.
+        It returns the initial values and static parameters as list of numpy arrays
+        of shape (n_feat * (2 + gas params)), where 2 is due to initial mean and var.
 
         Initial guesses must be a 1D array, look at unpack_minimization_input for
         the correct shapes description. Bounds must be an iterable of couples with
@@ -72,42 +73,57 @@ class GASNormalizer:
         # the results will be a list of lists containing the optimal values  of
         # the parameters as numpy arrays (n_features,)
         initial_params_list = []
-        for ts in tqdm(dataset, total=len(dataset), unit="ts"):
-            # we normalize time_series features independently
-            ts_results = []
+        verbose = 10
+        if n_features == 1:
 
-            def inner_func(feat):
-                # update initial guesses based on the time series
+            def ts_inner_func(ts):
                 ts_initial_guesses = initial_guesses.copy()
-                ts_initial_guesses[0] = np.mean(ts[:, feat], axis=0)
-                ts_initial_guesses[1] = np.var(ts[:, feat], axis=0)
+                ts_initial_guesses[0] = np.mean(ts, axis=0)
+                ts_initial_guesses[1] = np.var(ts, axis=0)
 
-                # we define the function to minimize
                 def func_to_minimize(x):
                     # we must first unpack the input
-                    return self.compute_neg_log_likelihood(ts[:, feat], *x)
+                    return self.compute_neg_log_likelihood(ts.squeeze(), *x)
 
                 optimal = minimize(
-                    func_to_minimize,
-                    x0=ts_initial_guesses,
-                    bounds=bounds,
-                    # method="Powell",
-                    # options={"disp": True},
+                    func_to_minimize, x0=ts_initial_guesses, bounds=bounds
                 )
-                """if not optimal.success:
-                    raise RuntimeError(
-                        f"Error in minimization of negative log likelihood: {optimal.message}"
-                    )"""
                 return optimal.x
 
-            # let's run the code for each feature in parallel
-            verbose = 0 if n_features == 1 else 10
-            ts_results = Parallel(n_jobs=-1, verbose=verbose)(
-                delayed(inner_func)(feat) for feat in range(n_features)
-            )  # this function mantains the ordering
-            ts_results = np.stack(ts_results, axis=1)  # type: ignore I'm sure it's a list of np.ndarray
+            results = Parallel(n_jobs=-1, verbose=verbose)(
+                delayed(ts_inner_func)(ts) for ts in dataset
+            )
+            return list(results)
+        else:
+            for ts in tqdm(dataset, total=len(dataset), unit="ts"):
+                # we normalize time_series features independently
+                ts_results = []
 
-            initial_params_list.append([el for el in ts_results])
+                def feat_inner_func(feat):
+                    # update initial guesses based on the time series
+                    ts_initial_guesses = initial_guesses.copy()
+                    ts_initial_guesses[0] = np.mean(ts[:, feat], axis=0)
+                    ts_initial_guesses[1] = np.var(ts[:, feat], axis=0)
+
+                    # we define the function to minimize
+                    def func_to_minimize(x):
+                        # we must first unpack the input
+                        return self.compute_neg_log_likelihood(ts[:, feat], *x)
+
+                    optimal = minimize(
+                        func_to_minimize,
+                        x0=ts_initial_guesses,
+                        bounds=bounds,
+                    )
+                    return optimal.x
+
+                # let's run the code for each feature in parallel
+                ts_results = Parallel(n_jobs=-1, verbose=verbose)(
+                    delayed(feat_inner_func)(feat) for feat in range(n_features)
+                )  # this function mantains the ordering
+                ts_results = np.stack(ts_results, axis=1)  # type: ignore I'm sure it's a list of np.ndarray
+
+                initial_params_list.append([el for el in ts_results])
         return initial_params_list
 
     def normalize(

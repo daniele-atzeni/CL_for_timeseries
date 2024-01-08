@@ -241,6 +241,7 @@ class TransformerTrainingNetwork(TransformerNetwork):
         future_target: Tensor,
         future_observed_values: Tensor,
         past_feat_dynamic_real: Tensor,  ###
+        feat_static_real: Tensor,  ###
     ) -> Tensor:
         """
         Computes the loss for training Transformer, all inputs tensors
@@ -262,7 +263,28 @@ class TransformerTrainingNetwork(TransformerNetwork):
         -------
         Loss with shape (batch_size, context + prediction_length, 1)
         """
+        # retrieve the data
+        means = past_feat_dynamic_real.slice(
+            begin=(None, None, 0),
+            end=(None, None, 1),
+        )  # (batch, context_length, 1)
+        vars = past_feat_dynamic_real.slice(
+            begin=(None, None, 1),
+            end=(None, None, 2),
+        )  # (batch, context_length, 1)
 
+        # normalize past_target
+        past_target = (past_target - F.squeeze(means)) / (
+            F.sqrt(F.squeeze(vars)) + 1e-8
+        )
+
+        # in this case, the past_* are not shaped as (batch_size, context_len, ...)
+        # but they are longer, so we take only last context_len values
+        means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
+        # compute mean layer prediction
+        pred_means = self.mean_layer(past_target, means, vars, feat_static_real)
+
+        """Now the original code"""
         # create the inputs for the encoder
         inputs, scale, _ = self.create_network_input(
             F=F,
@@ -290,26 +312,12 @@ class TransformerTrainingNetwork(TransformerNetwork):
         # compute loss
         distr_args = self.proj_dist_args(dec_output)
 
-        """My code here"""
-        # we must include the prediction of the linear layer for the means
-        # Note that for Transformers, they change the instance_splitter to
-        # include windows with length history_length, that is bigger than the
-        # context length. So, we must take only the last context_length values
-        # of past_feat_dynamic_real
-        means = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1))
-        means = F.slice_axis(
-            means, axis=1, begin=-self.context_length, end=None
-        )  # idk why I dont have to do this for FFNN
-        # vars = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2))
-
-        pred_means = self.mean_layer(means)
-        # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
+        # finally recombine the output
         new_distr_args = tuple(
             [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
         )
-        # I hope that in distr_args[0] there is the mean
-        """ end """
 
+        # now again the original code
         distr = self.distr_output.distribution(new_distr_args, scale=scale)  ###
         loss = distr.loss(future_target)
 
@@ -343,6 +351,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
         scale: Tensor,
         enc_out: Tensor,
         past_feat_dynamic_real: Tensor,  ###
+        feat_static_real: Tensor,  ###
     ) -> Tensor:
         """
         Computes sample paths by unrolling the LSTM starting with a initial
@@ -369,7 +378,28 @@ class TransformerPredictionNetwork(TransformerNetwork):
             a tensor containing sampled paths.
             Shape: (batch_size, num_sample_paths, prediction_length).
         """
+        # retrieve the data
+        means = past_feat_dynamic_real.slice(
+            begin=(None, None, 0),
+            end=(None, None, 1),
+        )  # (batch, context_length, 1)
+        vars = past_feat_dynamic_real.slice(
+            begin=(None, None, 1),
+            end=(None, None, 2),
+        )  # (batch, context_length, 1)
 
+        # normalize past_target
+        past_target = (past_target - F.squeeze(means)) / (
+            F.sqrt(F.squeeze(vars)) + 1e-8
+        )
+
+        # in this case, the past_* are not shaped as (batch_size, context_len, ...)
+        # but they are longer, so we take only last context_len values
+        means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
+        # compute mean layer prediction
+        pred_means = self.mean_layer(past_target, means, vars, feat_static_real)
+
+        # original code
         # blows-up the dimension of each tensor to batch_size *
         # self.num_parallel_samples for increasing parallelism
         repeated_past_target = past_target.repeat(
@@ -385,18 +415,6 @@ class TransformerPredictionNetwork(TransformerNetwork):
         repeated_scale = scale.repeat(repeats=self.num_parallel_samples, axis=0)
 
         """My code here"""
-        # we must include the prediction of the linear layer for the means
-        # Note that for Transformers, they change the instance_splitter to
-        # include windows with length history_length, that is bigger than the
-        # context length. So, we must take only the last context_length values
-        # of past_feat_dynamic_real
-        means = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1))
-        means = F.slice_axis(
-            means, axis=1, begin=-self.context_length, end=None
-        )  # idk why I dont have to do this for FFNN
-        # vars = F.squeeze(F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2))
-
-        pred_means = self.mean_layer(means)
         # doing the same processing of other tensors...
         repeated_pred_means = pred_means.repeat(
             repeats=self.num_parallel_samples, axis=0
@@ -488,6 +506,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
         past_observed_values: Tensor,
         future_time_feat: Tensor,
         past_feat_dynamic_real: Tensor,  ###
+        feat_static_real: Tensor,  ###
     ) -> Tensor:
         """
         Predicts samples, all tensors should have NTC layout.
@@ -527,4 +546,5 @@ class TransformerPredictionNetwork(TransformerNetwork):
             scale=scale,
             enc_out=enc_out,
             past_feat_dynamic_real=past_feat_dynamic_real,  ###
+            feat_static_real=feat_static_real,  ###
         )

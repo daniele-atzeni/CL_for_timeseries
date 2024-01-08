@@ -11,10 +11,10 @@ import mxnet as mx
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from my_models.gluonts_models.feedforward_linear_means._estimator import (
+from my_models.gluonts_models.univariate.feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_linear,
 )
-from my_models.gluonts_models.feedforward_gas_means._estimator import (
+from my_models.gluonts_models.univariate.feedforward_gas_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_gas,
 )
 from my_models.gluonts_models.feedforward_multivariate_linear_means._estimator import (
@@ -23,11 +23,23 @@ from my_models.gluonts_models.feedforward_multivariate_linear_means._estimator i
 from my_models.gluonts_models.feedforward_multivariate_gas_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate_gas,
 )
-from my_models.gluonts_models.transformer_linear_means._estimator import (
+from my_models.gluonts_models.univariate.transformer_linear_means._estimator import (
     TransformerEstimator as Transformer_gluonts_linear_means,
+)
+from my_models.gluonts_models.univariate.transformer_gas_means._estimator import (
+    TransformerEstimator as Transformer_gluonts_gas_means,
 )
 from my_models.gluonts_models.transformer_multivariate_linear_means._estimator import (
     TransformerEstimator as Transformer_gluonts_multivariate_linear,
+)
+from my_models.gluonts_models.univariate.deepar_gas_means._estimator import (
+    DeepAREstimator as Deepar_gluonts_gas_means,
+)
+from my_models.gluonts_models.univariate.deepar_linear_means._estimator import (
+    DeepAREstimator as Deepar_gluonts_linear_means,
+)
+from my_models.gluonts_models.deepar_multivariate_linear_means._estimator import (
+    DeepAREstimator as Deepar_gluonts_multivariate_linear_means,
 )
 
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
@@ -66,6 +78,7 @@ class GasHybridBlock(mx.gluon.HybridBlock):
         ]
         if self.n_features == 1:
             last_x = x.slice(begin=(None, -1), end=(None, None)).squeeze()  # (batch)
+            gas_params = [el.squeeze() for el in gas_params]  # (batch)
         else:
             last_x = x.slice(
                 begin=(None, -1, None), end=(None, None, None)
@@ -85,7 +98,7 @@ class GasHybridBlock(mx.gluon.HybridBlock):
             pred_means.append(new_mean)
             last_x = new_mean
             last_mean = new_mean
-            last_var = F.ones_like(new_var) * 10  # new var
+            last_var = new_var
         return F.stack(*pred_means, axis=1)
 
 
@@ -144,7 +157,15 @@ def initialize_estimator(
     elif dl_model_name == "transformer":
         if num_features == 1:
             if isinstance(trained_mean_layer, GASNormalizer):
-                raise ValueError("Transformer gas not implemented.")
+                estimator = Transformer_gluonts_gas_means(
+                    mean_layer,
+                    freq=frequency,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
             else:
                 estimator = Transformer_gluonts_linear_means(
                     mean_layer,
@@ -169,6 +190,33 @@ def initialize_estimator(
                     trainer=trainer,
                     **estimator_parameters,
                 )
+    elif dl_model_name == "deepar":
+        if num_features == 1:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                estimator = Deepar_gluonts_gas_means(
+                    mean_layer,
+                    freq=frequency,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+            else:
+                estimator = Deepar_gluonts_linear_means(
+                    mean_layer,
+                    freq=frequency,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+        else:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                raise ValueError("DeepAR gas not implemented.")
+            else:
+                raise ValueError("DeepAR linear not implemented.")
     else:
         raise ValueError(f"Unknown estimator name: {dl_model_name}")
     return estimator
@@ -229,7 +277,7 @@ def experiment_gluonts(
 
     # estimator initialization
     print("Initializing the estimator...")
-    trainer = Trainer(**trainer_parameters)
+    trainer = Trainer(hybridize=False, **trainer_parameters)
     estimator = initialize_estimator(
         dl_model_name,
         n_features,
@@ -241,75 +289,25 @@ def experiment_gluonts(
         trainer,
         estimator_parameters,
     )
-    """
-    if dl_model_name == "feedforward":
-        if n_features == 1:
-            if isinstance(trained_mean_layer, GASNormalizer):
-                estimator = FF_gluonts_gas(
-                    mean_layer,
-                    distr_output=StudentTOutput(),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
-            else:
-                estimator = FF_gluonts_linear(
-                    mean_layer,
-                    distr_output=StudentTOutput(),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
-        else:
-            if isinstance(trained_mean_layer, GASNormalizer):
-                estimator = FF_gluonts_multivariate_gas(
-                    mean_layer,
-                    n_features,
-                    distr_output=MultivariateGaussianOutput(dim=n_features),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
-            else:
-                estimator = FF_gluonts_multivariate_linear(
-                    mean_layer,
-                    n_features,
-                    distr_output=MultivariateGaussianOutput(dim=n_features),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
-    elif dl_model_name == "transformer":
-        if n_features == 1:
-            estimator = Transformer_gluonts_linear_means(
-                mean_layer,
-                freq=frequency,
-                distr_output=StudentTOutput(),
-                prediction_length=prediction_length,
-                context_length=context_length,
-                trainer=trainer,
-                **estimator_parameters,
-            )
-        else:
-            estimator = Transformer_gluonts_multivariate_linear(
-                mean_layer,
-                n_features,
-                freq=frequency,
-                distr_output=MultivariateGaussianOutput(dim=n_features),
-                prediction_length=prediction_length,
-                context_length=context_length,
-                trainer=trainer,
-                **estimator_parameters,
-            )
-    else:
-        raise ValueError(f"Unknown estimator name: {dl_model_name}")
-    """
+
     # TRAIN THE ESTIMATOR
     print("Training the estimator...")
+    """
+    if "deepar" in dl_model_name:
+        import numpy as np
+
+        new_gluonts_train_dataset = []
+        for el in gluonts_train_dataset:
+            el["target"] = np.expand_dims(el["target"], axis=0)
+            new_gluonts_train_dataset.append(el)
+        gluonts_train_dataset = new_gluonts_train_dataset
+        new_gluonts_test_dataset = []
+        for el in gluonts_test_dataset:
+            el["target"] = np.expand_dims(el["target"], axis=0)
+            new_gluonts_test_dataset.append(el)
+        gluonts_test_dataset = new_gluonts_test_dataset
+    """
+
     predictor = estimator.train(gluonts_train_dataset)
     # gluonts is not unbound because we checked the length of the dataset
     print("Done.")

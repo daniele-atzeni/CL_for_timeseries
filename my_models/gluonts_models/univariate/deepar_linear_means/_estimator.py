@@ -159,6 +159,7 @@ class DeepAREstimator(GluonEstimator):
     @validated()
     def __init__(
         self,
+        mean_layer: HybridBlock,
         freq: str,
         prediction_length: int,
         trainer: Trainer = Trainer(),
@@ -192,9 +193,9 @@ class DeepAREstimator(GluonEstimator):
     ) -> None:
         super().__init__(trainer=trainer, batch_size=batch_size, dtype=dtype)
 
-        assert (
-            prediction_length > 0
-        ), "The value of `prediction_length` should be > 0"
+        self.mean_layer = mean_layer  ###
+
+        assert prediction_length > 0, "The value of `prediction_length` should be > 0"
         assert (
             context_length is None or context_length > 0
         ), "The value of `context_length` should be > 0"
@@ -236,9 +237,7 @@ class DeepAREstimator(GluonEstimator):
         self.use_feat_dynamic_real = use_feat_dynamic_real
         self.use_feat_static_cat = use_feat_static_cat
         self.use_feat_static_real = use_feat_static_real
-        self.cardinality = (
-            cardinality if cardinality and use_feat_static_cat else [1]
-        )
+        self.cardinality = cardinality if cardinality and use_feat_static_cat else [1]
         self.embedding_dimension = (
             embedding_dimension
             if embedding_dimension is not None
@@ -246,9 +245,7 @@ class DeepAREstimator(GluonEstimator):
         )
         self.scaling = scaling
         self.lags_seq = (
-            lags_seq
-            if lags_seq is not None
-            else get_lags_for_frequency(freq_str=freq)
+            lags_seq if lags_seq is not None else get_lags_for_frequency(freq_str=freq)
         )
         self.time_features = (
             time_features
@@ -300,8 +297,9 @@ class DeepAREstimator(GluonEstimator):
         remove_field_names = [FieldName.FEAT_DYNAMIC_CAT]
         if not self.use_feat_static_real:
             remove_field_names.append(FieldName.FEAT_STATIC_REAL)
-        if not self.use_feat_dynamic_real:
-            remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
+        # we will need feat_dynamic_real
+        # if not self.use_feat_dynamic_real:
+        #    remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
 
         return Chain(
             [RemoveFields(field_names=remove_field_names)]
@@ -311,11 +309,7 @@ class DeepAREstimator(GluonEstimator):
                 else []
             )
             + (
-                [
-                    SetField(
-                        output_field=FieldName.FEAT_STATIC_REAL, value=[0.0]
-                    )
-                ]
+                [SetField(output_field=FieldName.FEAT_STATIC_REAL, value=[0.0])]
                 if not self.use_feat_static_real
                 else []
             )
@@ -359,11 +353,11 @@ class DeepAREstimator(GluonEstimator):
                 VstackFeatures(
                     output_field=FieldName.FEAT_TIME,
                     input_fields=[FieldName.FEAT_TIME, FieldName.FEAT_AGE]
-                    + (
-                        [FieldName.FEAT_DYNAMIC_REAL]
-                        if self.use_feat_dynamic_real
-                        else []
-                    ),
+                    # + (    # we don't want to do this, so we keep the if
+                    #    [FieldName.FEAT_DYNAMIC_REAL]
+                    #    if self.use_feat_dynamic_real
+                    #    else []
+                    # ),
                 ),
             ]
         )
@@ -388,6 +382,7 @@ class DeepAREstimator(GluonEstimator):
             time_series_fields=[
                 FieldName.FEAT_TIME,
                 FieldName.OBSERVED_VALUES,
+                FieldName.FEAT_DYNAMIC_REAL,  ###
             ],
             dummy_value=self.distr_output.value_in_support,
         )
@@ -423,6 +418,7 @@ class DeepAREstimator(GluonEstimator):
 
     def create_training_network(self) -> DeepARTrainingNetwork:
         return DeepARTrainingNetwork(
+            mean_layer=self.mean_layer,  ###
             num_layers=self.num_layers,
             num_cells=self.num_cells,
             cell_type=self.cell_type,
@@ -451,6 +447,7 @@ class DeepAREstimator(GluonEstimator):
         prediction_splitter = self._create_instance_splitter("test")
 
         prediction_network = DeepARPredictionNetwork(
+            mean_layer=self.mean_layer,  ###
             num_parallel_samples=self.num_parallel_samples,
             num_layers=self.num_layers,
             num_cells=self.num_cells,

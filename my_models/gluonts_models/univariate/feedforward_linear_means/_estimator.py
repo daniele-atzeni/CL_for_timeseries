@@ -141,12 +141,6 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             ],
             allow_missing=True,
         )
-        """+ AddObservedValuesIndicator(
-            target_field=FieldName.TARGET,
-            output_field=FieldName.OBSERVED_VALUES,    
-            dtype=self.dtype,
-            imputation_method=self.imputation_method,
-        )"""
 
     def _create_instance_splitter(self, mode: str):
         assert mode in ["training", "validation", "test"]
@@ -167,8 +161,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             future_length=self.prediction_length,
             time_series_fields=[
                 FieldName.FEAT_DYNAMIC_REAL,  ## my code here
-                # FieldName.OBSERVED_VALUES,
-            ],
+            ],  # the fields to split in past and future (as "target")
         )
 
     def create_training_data_loader(

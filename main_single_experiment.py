@@ -7,7 +7,7 @@ if __name__ == "__main__":
     DATASET_TYPE = "gluonts"  # "synthetic"
     DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
     DATASET_PARAMS = real_world_data_params  # synthetic_generation_params
-    DATASET_PARAMS["multivariate"] = False  # or False
+    DATASET_PARAMS["multivariate"] = False  # or True
     DATASET_FILE_FOLDER = None  # "tsf_data"
     # if None, dataset is obtained from GluonTS, if str from file
 
@@ -16,25 +16,25 @@ if __name__ == "__main__":
     NORMALIZER_BOUNDS = gas_t_stud_bounds
     NORMALIZER_PARAMS = gas_t_stud_params
 
-    MEAN_LAYER_NAME = "gas"  # TODO: gas
+    MEAN_LAYER_NAME = "gas"  # "gas" or "linear"
     MEAN_LAYER_PARAMS = (
         gas_mean_layer_params if MEAN_LAYER_NAME == "gas" else linear_mean_layer_params
     )
 
-    DL_MODEL_LIBRARY = "gluonts"  # "torch"
-    DL_MODEL_NAME = "feedforward"  # "feedforward" TODO: transformer
-    DL_MODEL_PARAMS = (
-        gluonts_transformer_params
-        if DL_MODEL_NAME == "transformer"
-        else gluonts_feedforward_params
-    )
+    DL_MODEL_LIBRARY = "gluonts"  # "gluonts" or "torch"
+    DL_MODEL_NAME = "deepar"  # "feedforward" or "transformer" or "deepar"
+
+    if DL_MODEL_NAME == "transformer":
+        DL_MODEL_PARAMS = gluonts_transformer_params
+    elif DL_MODEL_NAME == "deepar":
+        DL_MODEL_PARAMS = gluonts_deepar_params
+    else:
+        DL_MODEL_PARAMS = gluonts_feedforward_params
 
     N_TRAINING_SAMPLES = 5000
     N_TEST_SAMPLES = 1000
 
-    ROOT_FOLDER = (
-        f"RESULTS_{DATASET_NAME}_{NORMALIZER_NAME}_{MEAN_LAYER_NAME}_{DL_MODEL_LIBRARY}"
-    )
+    ROOT_FOLDER = f"RESULTS_{DATASET_NAME}_{NORMALIZER_NAME}_{MEAN_LAYER_NAME}_{DL_MODEL_LIBRARY}_{DL_MODEL_NAME}"
     if DATASET_PARAMS["multivariate"]:
         ROOT_FOLDER += "_multivariate"
 

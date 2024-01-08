@@ -59,6 +59,8 @@ class GluonTSDataManager:
         """
         if root_folder is None:
             gluonts_dataset = gluonts_get_dataset(self.name)
+            # train_dataset = [el for i, el in enumerate(gluonts_dataset.train) if i < 5]
+            # test_dataset = [el for i, el in enumerate(gluonts_dataset.test) if i < 5]
             train_dataset = gluonts_dataset.train
             test_dataset = gluonts_dataset.test
             assert isinstance(gluonts_dataset.metadata.prediction_length, int)
@@ -252,7 +254,9 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": np.concatenate(train_param),
+                        "feat_static_real": np.concatenate(train_param)
+                        if isinstance(train_param, list)
+                        else train_param,
                     }
                     for data_entry, mean, var, train_param in zip(
                         self.train_dataset,
@@ -269,7 +273,9 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": np.concatenate(train_param),
+                        "feat_static_real": np.concatenate(train_param)
+                        if isinstance(train_param, list)
+                        else train_param,
                     }
                     for data_entry, mean, var, train_param in zip(
                         self.test_dataset,
@@ -287,7 +293,9 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": np.concatenate(train_param),
+                        "feat_static_real": np.concatenate(train_param)
+                        if isinstance(train_param, list)
+                        else train_param,
                     }
                     for data_entry, mean, var, train_param in zip(
                         self.train_dataset,
@@ -305,7 +313,9 @@ class GluonTSDataManager:
                         "target": data_entry["target"],
                         "start": data_entry["start"],
                         "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": np.concatenate(train_param),
+                        "feat_static_real": np.concatenate(train_param)
+                        if isinstance(train_param, list)
+                        else train_param,
                     }
                     for data_entry, mean, var, train_param in zip(
                         self.test_dataset,

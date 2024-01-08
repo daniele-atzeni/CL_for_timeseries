@@ -40,6 +40,8 @@ from gluonts.transform import (
     TestSplitSampler,
     Transformation,
     ValidationSplitSampler,
+    Chain,
+    AsNumpyArray,
 )
 from gluonts.transform.feature import (
     DummyValueImputation,
@@ -131,23 +133,22 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     # transformation that includes time features, age feature, observed values
     # indicator, ...
     def create_transformation(self) -> Transformation:
-        return SelectFields(
-            [
-                FieldName.ITEM_ID,
-                FieldName.INFO,
-                FieldName.START,
-                FieldName.TARGET,
-                FieldName.FEAT_DYNAMIC_REAL,
-                FieldName.FEAT_STATIC_REAL,
-            ],
-            allow_missing=True,
+        return Chain(
+            [AsNumpyArray(field=FieldName.FEAT_STATIC_REAL, expected_ndim=1)]
+            + [
+                SelectFields(
+                    [
+                        FieldName.ITEM_ID,
+                        FieldName.INFO,
+                        FieldName.START,
+                        FieldName.TARGET,
+                        FieldName.FEAT_DYNAMIC_REAL,
+                        FieldName.FEAT_STATIC_REAL,
+                    ],
+                    allow_missing=True,
+                )
+            ]
         )
-        """+ AddObservedValuesIndicator(
-            target_field=FieldName.TARGET,
-            output_field=FieldName.OBSERVED_VALUES,    
-            dtype=self.dtype,
-            imputation_method=self.imputation_method,
-        )"""
 
     def _create_instance_splitter(self, mode: str):
         assert mode in ["training", "validation", "test"]
@@ -168,7 +169,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             future_length=self.prediction_length,
             time_series_fields=[
                 FieldName.FEAT_DYNAMIC_REAL,
-                FieldName.FEAT_STATIC_REAL,
+                # FieldName.FEAT_STATIC_REAL,
             ],
         )
 

@@ -88,6 +88,17 @@ gluonts_transformer_params = {
     "evaluation": {"quantiles": [0.1, 0.5, 0.9]},
 }
 
+gluonts_deepar_params = {
+    "main_model": {},
+    "training": {
+        "epochs": 5,
+        "learning_rate": 5 * 1e-4,
+        "num_batches_per_epoch": 100,
+    },
+    "prediction": {"num_samples": 100},
+    "evaluation": {"quantiles": [0.1, 0.5, 0.9]},
+}
+
 # torch
 torch_feedforward_params = {
     "main_model": {
