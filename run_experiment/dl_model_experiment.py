@@ -292,22 +292,6 @@ def experiment_gluonts(
 
     # TRAIN THE ESTIMATOR
     print("Training the estimator...")
-    """
-    if "deepar" in dl_model_name:
-        import numpy as np
-
-        new_gluonts_train_dataset = []
-        for el in gluonts_train_dataset:
-            el["target"] = np.expand_dims(el["target"], axis=0)
-            new_gluonts_train_dataset.append(el)
-        gluonts_train_dataset = new_gluonts_train_dataset
-        new_gluonts_test_dataset = []
-        for el in gluonts_test_dataset:
-            el["target"] = np.expand_dims(el["target"], axis=0)
-            new_gluonts_test_dataset.append(el)
-        gluonts_test_dataset = new_gluonts_test_dataset
-    """
-
     predictor = estimator.train(gluonts_train_dataset)
     # gluonts is not unbound because we checked the length of the dataset
     print("Done.")
@@ -336,9 +320,9 @@ def experiment_gluonts(
     # save initialization parameters
     with open(os.path.join(dl_model_folder, "init_params.json"), "w") as f:
         json.dump(dl_model_params, f)
-    # save evaluator and its results
+    # save predictor and evaluator and its results
     with open(dl_model_filename, "wb") as f:
-        pickle.dump(evaluator, f)
+        pickle.dump(predictor, f)
     # save agg_metrics as json and item_metrics as csv
     with open(os.path.join(results_folder, "agg_metrics.json"), "w") as f:
         json.dump(agg_metrics, f)
