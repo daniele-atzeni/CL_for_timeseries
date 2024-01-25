@@ -869,21 +869,18 @@ class DeepARTrainingNetwork(DeepARNetwork):
 
         ########
         # set scale to one
-        #scale = F.ones_like(scale)
+        # scale = F.ones_like(scale)
         ########
-
 
         # return the output of rnn layers if return_rnn_outputs=True, so that
         # it can be used for regularization later assume no dropout for
         # outputs, so can be directly used for activation regularization
-        return (
-            (
-                self.distr_output.distribution(distr_args, scale=None), #scale=scale),
+        if return_rnn_outputs:
+            return (
+                self.distr_output.distribution(distr_args, scale=None),#scale=scale),
                 rnn_outputs,
             )
-            if return_rnn_outputs
-            else self.distr_output.distribution(distr_args, scale=None),#scale=scale)
-        )
+        return self.distr_output.distribution(distr_args, scale=None)#scale=scale)
 
     def hybrid_forward(
         self,
@@ -1068,7 +1065,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
 
         ###########
         # set scale to ones
-        #scale = F.ones_like(scale)
+        # scale = F.ones_like(scale)
         ###########
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
@@ -1159,7 +1156,9 @@ class DeepARPredictionNetwork(DeepARNetwork):
             """ end """
 
             # compute likelihood of target given the predicted parameters
-            distr = self.distr_output.distribution(distr_args, scale=None)#scale=repeated_scale)
+            distr = self.distr_output.distribution(
+                distr_args, scale=None
+            )  # scale=repeated_scale)
 
             # (batch_size * num_samples, 1, *target_shape)
             new_samples = distr.sample(dtype=self.dtype)

@@ -5,8 +5,8 @@ from run_experiment.gas_experiment import run_gas_experiment
 
 if __name__ == "__main__":
     DATASET_TYPE = "gluonts"  # "synthetic"
-    # DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
-    DATASET_NAME = "fred_md"  # gluonts names/custom_name
+    DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
+    # DATASET_NAME = "fred_md"  # gluonts names/custom_name
     DATASET_PARAMS = real_world_data_params  # synthetic_generation_params
     DATASET_PARAMS["multivariate"] = False  # or True
     DATASET_FILE_FOLDER = None  # "tsf_data"
