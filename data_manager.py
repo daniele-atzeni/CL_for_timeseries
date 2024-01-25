@@ -35,6 +35,8 @@ class GluonTSDataManager:
         The data obtained by the normalizer are lists of numpy arrays of shape
         (ts_length, n_features), with n_features = 1 for univariate.
         """
+        self.MIN_VALUE_TO_SCALE = 100
+
         self.name = name
         self.multivariate = multivariate
         self.init_main_dataset(root_folder)
@@ -59,10 +61,19 @@ class GluonTSDataManager:
         """
         if root_folder is None:
             gluonts_dataset = gluonts_get_dataset(self.name)
-            # train_dataset = [el for i, el in enumerate(gluonts_dataset.train) if i < 5]
-            # test_dataset = [el for i, el in enumerate(gluonts_dataset.test) if i < 5]
-            train_dataset = gluonts_dataset.train
-            test_dataset = gluonts_dataset.test
+            assert gluonts_dataset.test is not None, "No test dataset"
+            # train_dataset = gluonts_dataset.train
+            # test_dataset = gluonts_dataset.test
+            # remove all the features we won't use
+            # we need only the target, because we will use other fields for
+            # means and vars
+            train_dataset = []
+            for el in gluonts_dataset.train:
+                train_dataset.append({"target": el["target"], "start": el["start"]})
+            test_dataset = []
+            for el in gluonts_dataset.test:
+                test_dataset.append({"target": el["target"], "start": el["start"]})
+
             assert isinstance(gluonts_dataset.metadata.prediction_length, int)
             self.prediction_length = gluonts_dataset.metadata.prediction_length
             self.context_length = 2 * self.prediction_length
@@ -102,12 +113,15 @@ class GluonTSDataManager:
             self.train_dataset = train_dataset
             self.test_dataset = test_dataset
 
-    def _scale_dataset(self, dataset) -> list[DataEntry]:
+    def _scale_dataset(self, dataset: list[DataEntry]) -> list[DataEntry]:
         """
         This method shrinks the dataset by dividing all the time series by the
         mean of the first self.context_length points. Here, all time series are
         univariate since they come from file or from GluonTS.
         """
+        if max([el["target"].max() for el in dataset]) < self.MIN_VALUE_TO_SCALE:
+            return dataset
+
         new_dataset = []
         for el in dataset:
             scale_val = np.mean(el["target"][: self.context_length])

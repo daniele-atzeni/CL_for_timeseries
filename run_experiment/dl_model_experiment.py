@@ -277,7 +277,9 @@ def experiment_gluonts(
 
     # estimator initialization
     print("Initializing the estimator...")
-    trainer = Trainer(hybridize=False, **trainer_parameters)
+    trainer = Trainer(
+        hybridize=False, **trainer_parameters
+    )  # (hybridize=True, **trainer_parameters)
     estimator = initialize_estimator(
         dl_model_name,
         n_features,

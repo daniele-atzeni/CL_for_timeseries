@@ -866,18 +866,23 @@ class DeepARTrainingNetwork(DeepARNetwork):
         distr_args = tuple(
             [el if i != 0 else new_distr_args for i, el in enumerate(distr_args)]
         )
-        """"""
+
+        ########
+        # set scale to one
+        #scale = F.ones_like(scale)
+        ########
+
 
         # return the output of rnn layers if return_rnn_outputs=True, so that
         # it can be used for regularization later assume no dropout for
         # outputs, so can be directly used for activation regularization
         return (
             (
-                self.distr_output.distribution(distr_args, scale=scale),
+                self.distr_output.distribution(distr_args, scale=None), #scale=scale),
                 rnn_outputs,
             )
             if return_rnn_outputs
-            else self.distr_output.distribution(distr_args, scale=scale)
+            else self.distr_output.distribution(distr_args, scale=None),#scale=scale)
         )
 
     def hybrid_forward(
@@ -920,6 +925,8 @@ class DeepARTrainingNetwork(DeepARNetwork):
         vars = F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2)
         # vars = F.squeeze(vars)
         # normalize past_target
+        non_norm_past_target = past_target.copy()
+        # old_past_target = past_target
         past_target = (past_target - F.squeeze(means)) / (F.squeeze(vars).sqrt() + 1e-8)
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
@@ -950,7 +957,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
         # put together target sequence
         # (batch_size, seq_len, *target_shape)
         target = F.concat(
-            past_target.slice_axis(
+            non_norm_past_target.slice_axis(
                 axis=1,
                 begin=self.history_length - self.context_length,
                 end=None,
@@ -1059,6 +1066,11 @@ class DeepARPredictionNetwork(DeepARNetwork):
         # normalize past_target
         past_target = (past_target - F.squeeze(means)) / (F.squeeze(vars).sqrt() + 1e-8)
 
+        ###########
+        # set scale to ones
+        #scale = F.ones_like(scale)
+        ###########
+
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
         means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
@@ -1147,7 +1159,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
             """ end """
 
             # compute likelihood of target given the predicted parameters
-            distr = self.distr_output.distribution(distr_args, scale=repeated_scale)
+            distr = self.distr_output.distribution(distr_args, scale=None)#scale=repeated_scale)
 
             # (batch_size * num_samples, 1, *target_shape)
             new_samples = distr.sample(dtype=self.dtype)

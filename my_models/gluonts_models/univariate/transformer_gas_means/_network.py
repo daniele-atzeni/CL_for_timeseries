@@ -45,7 +45,7 @@ class TransformerNetwork(mx.gluon.HybridBlock):
         cardinality: List[int],
         embedding_dimension: int,
         lags_seq: List[int],
-        scaling: bool = True,
+        scaling: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
