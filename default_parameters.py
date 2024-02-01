@@ -91,6 +91,17 @@ gluonts_transformer_params = {
 gluonts_deepar_params = {
     "main_model": {},
     "training": {
+        "epochs": 2,
+        "learning_rate": 1e-5,
+        "num_batches_per_epoch": 100,
+    },
+    "prediction": {"num_samples": 100},
+    "evaluation": {"quantiles": [0.1, 0.5, 0.9]},
+}
+
+gluonts_wavenet_params = {
+    "main_model": {},
+    "training": {
         "epochs": 50,
         "learning_rate": 1e-5,
         "num_batches_per_epoch": 100,

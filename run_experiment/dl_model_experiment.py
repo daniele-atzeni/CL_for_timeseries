@@ -41,6 +41,9 @@ from my_models.gluonts_models.univariate.deepar_linear_means._estimator import (
 from my_models.gluonts_models.deepar_multivariate_linear_means._estimator import (
     DeepAREstimator as Deepar_gluonts_multivariate_linear_means,
 )
+from my_models.gluonts_models.univariate.wavenet_gas_means._estimator import (
+    WaveNetEstimator as Wavenet_gluonts_gas_means,
+)
 
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
 
@@ -91,15 +94,17 @@ class GasHybridBlock(mx.gluon.HybridBlock):
         ).squeeze()  # (batch, n_features) or (batch)
 
         pred_means = []
+        pred_vars = []
         for _ in range(self.prediction_length):
             new_mean, new_var = self.normalizer.update_mean_and_var(
                 last_x, last_mean, last_var, *gas_params
             )  # (batch, n_features), (batch, n_features) or (batch), (batch)
             pred_means.append(new_mean)
+            pred_vars.append(new_var)
             last_x = new_mean
             last_mean = new_mean
             last_var = new_var
-        return F.stack(*pred_means, axis=1)
+        return F.stack(*pred_means, axis=1), F.stack(*pred_vars, axis=1)
 
 
 def initialize_estimator(
@@ -214,9 +219,28 @@ def initialize_estimator(
                 )
         else:
             if isinstance(trained_mean_layer, GASNormalizer):
-                raise ValueError("DeepAR gas not implemented.")
+                raise ValueError("Multivariate DeepAR gas not implemented.")
             else:
-                raise ValueError("DeepAR linear not implemented.")
+                raise ValueError("Multivariate DeepAR linear not implemented.")
+    elif dl_model_name == "wavenet":
+        if num_features == 1:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                estimator = Wavenet_gluonts_gas_means(
+                    mean_layer,
+                    freq=frequency,
+                    distr_output=StudentTOutput(),
+                    prediction_length=prediction_length,
+                    context_length=context_length,
+                    trainer=trainer,
+                    **estimator_parameters,
+                )
+            else:
+                raise ValueError("Wavenet linear not implemented.")
+        else:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                raise ValueError("Multivariate Wavenet gas not implemented.")
+            else:
+                raise ValueError("Multivariate Wavenet linear not implemented.")
     else:
         raise ValueError(f"Unknown estimator name: {dl_model_name}")
     return estimator

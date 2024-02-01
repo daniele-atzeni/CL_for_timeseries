@@ -648,6 +648,8 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         """
 
         if future_time_feat is None or future_target is None:
+            # inference pass, we need last context_length of past_time_feat
+            # (not context + prediction_length)
             time_feat = past_time_feat.slice_axis(
                 axis=1,
                 begin=self.history_length - self.context_length,
@@ -800,6 +802,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
     def distribution(
         self,
         pred_means: Tensor,
+        pred_vars: Tensor,
         feat_static_cat: Tensor,
         feat_static_real: Tensor,
         past_time_feat: Tensor,
@@ -848,24 +851,27 @@ class DeepARTrainingNetwork(DeepARNetwork):
             future_target=future_target,
         )
 
-        distr_args = self.proj_distr_args(rnn_outputs)
+        distr_args = self.proj_distr_args(rnn_outputs)  # mu, sigma, nu
 
         """My code here"""
         # recombine the outputs
         # distr args dim 1 is context_length + prediction_length
         # we must add pred means to the last prediction length of the first
         # element of distr_args
-        distr_args_0 = distr_args[0].slice_axis(
+        mu_context = distr_args[0].slice_axis(axis=1, begin=0, end=self.context_length)
+        mu_pred = distr_args[0].slice_axis(axis=1, begin=self.context_length, end=None)
+        sigma_context = distr_args[1].slice_axis(
             axis=1, begin=0, end=self.context_length
         )
-        distr_args_1 = distr_args[0].slice_axis(
+        sigma_pred = distr_args[1].slice_axis(
             axis=1, begin=self.context_length, end=None
         )
-        distr_args_1 = distr_args_1 + pred_means
-        new_distr_args = F.concat(distr_args_0, distr_args_1, dim=1)
-        distr_args = tuple(
-            [el if i != 0 else new_distr_args for i, el in enumerate(distr_args)]
-        )
+
+        new_mu_pred = pred_vars.sqrt() * mu_pred + pred_means
+        new_mu = F.concat(mu_context, mu_pred, dim=1)
+        new_sigma_pred = sigma_pred * pred_vars
+        new_sigma = F.concat(sigma_context, new_sigma_pred, dim=1)
+        distr_args = (new_mu, new_sigma, distr_args[2])
 
         ########
         # set scale to one
@@ -877,10 +883,10 @@ class DeepARTrainingNetwork(DeepARNetwork):
         # outputs, so can be directly used for activation regularization
         if return_rnn_outputs:
             return (
-                self.distr_output.distribution(distr_args, scale=None),#scale=scale),
+                self.distr_output.distribution(distr_args, scale=None),  # scale=scale),
                 rnn_outputs,
             )
-        return self.distr_output.distribution(distr_args, scale=None)#scale=scale)
+        return self.distr_output.distribution(distr_args, scale=None)  # scale=scale)
 
     def hybrid_forward(
         self,
@@ -922,15 +928,23 @@ class DeepARTrainingNetwork(DeepARNetwork):
         vars = F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2)
         # vars = F.squeeze(vars)
         # normalize past_target
-        non_norm_past_target = past_target.copy()
+        if F.__name__ == "mxnet.ndarray":
+            non_norm_past_target = past_target.copy()
+        else:
+            non_norm_past_target = past_target
         # old_past_target = past_target
         past_target = (past_target - F.squeeze(means)) / (F.squeeze(vars).sqrt() + 1e-8)
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
         means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
+        vars = F.slice_axis(vars, axis=1, begin=-self.context_length, end=None)
         # mean predictions
-        pred_means = self.mean_layer(past_target, means, vars, feat_static_real)
+        pred_means, pred_vars = self.mean_layer(
+            past_target, means, vars, feat_static_real
+        )
+        # we must scale down the future target that is going to be used for teacher forcing
+        scaled_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
         # we don't want to use feat_static_real anymore, so we set it to zeros
         feat_static_real = F.zeros_like(feat_static_cat)
 
@@ -942,10 +956,11 @@ class DeepARTrainingNetwork(DeepARNetwork):
             past_observed_values=past_observed_values,
             past_is_pad=past_is_pad,
             future_time_feat=future_time_feat,
-            future_target=future_target,
+            future_target=scaled_future_target,
             future_observed_values=future_observed_values,
             return_rnn_outputs=True,
             pred_means=pred_means,  ###
+            pred_vars=pred_vars,  ###
         )
         # since return_rnn_outputs=True, assert:
         assert isinstance(outputs, tuple)
@@ -1072,7 +1087,9 @@ class DeepARPredictionNetwork(DeepARNetwork):
         # but they are longer, so we take only last context_len values
         means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
         # mean predictions
-        pred_means = self.mean_layer(past_target, means, vars, feat_static_real)
+        pred_means, pred_vars = self.mean_layer(
+            past_target, means, vars, feat_static_real
+        )
 
         # original code here
         # blows-up the dimension of each tensor to batch_size *
@@ -1094,6 +1111,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
         repeated_pred_means = pred_means.repeat(
             repeats=self.num_parallel_samples, axis=0
         )
+        repeated_pred_vars = pred_vars.repeat(repeats=self.num_parallel_samples, axis=0)
         """ end """
 
         future_samples = []
@@ -1140,18 +1158,15 @@ class DeepARPredictionNetwork(DeepARNetwork):
                 merge_outputs=True,
             )
 
-            distr_args = self.proj_distr_args(rnn_outputs)
+            distr_args = self.proj_distr_args(rnn_outputs)  # mu sigma nu
 
             """My code here"""
             # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
-            distr_args = tuple(
-                [
-                    el
-                    if i != 0
-                    else el + repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
-                    for i, el in enumerate(distr_args)
-                ]
-            )
+            pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
+            pred_var_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
+            new_mu = pred_var_k.sqrt() * distr_args[0] + pred_means_k
+            new_sigma = pred_var_k * distr_args[1]
+            distr_args = (new_mu, new_sigma, distr_args[2])
             # I hope that in distr_args[0] there is the mean
             """ end """
 

@@ -5,8 +5,8 @@ from run_experiment.gas_experiment import run_gas_experiment
 
 if __name__ == "__main__":
     DATASET_TYPE = "gluonts"  # "synthetic"
-    DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
-    # DATASET_NAME = "fred_md"  # gluonts names/custom_name
+    # DATASET_NAME = "nn5_weekly"  # gluonts names/custom_name
+    DATASET_NAME = "fred_md"  # gluonts names/custom_name
     DATASET_PARAMS = real_world_data_params  # synthetic_generation_params
     DATASET_PARAMS["multivariate"] = False  # or True
     DATASET_FILE_FOLDER = None  # "tsf_data"
@@ -23,12 +23,14 @@ if __name__ == "__main__":
     )
 
     DL_MODEL_LIBRARY = "gluonts"  # "gluonts" or "torch"
-    DL_MODEL_NAME = "deepar"  # "feedforward" or "transformer" or "deepar"
+    DL_MODEL_NAME = "deepar"  # "feedforward" or "transformer" or "deepar" or "wavenet"
 
     if DL_MODEL_NAME == "transformer":
         DL_MODEL_PARAMS = gluonts_transformer_params
     elif DL_MODEL_NAME == "deepar":
         DL_MODEL_PARAMS = gluonts_deepar_params
+    elif DL_MODEL_NAME == "wavenet":
+        DL_MODEL_PARAMS = gluonts_wavenet_params
     else:
         DL_MODEL_PARAMS = gluonts_feedforward_params
 

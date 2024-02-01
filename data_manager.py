@@ -74,6 +74,9 @@ class GluonTSDataManager:
             for el in gluonts_dataset.test:
                 test_dataset.append({"target": el["target"], "start": el["start"]})
 
+            train_dataset = train_dataset[:3]
+            test_dataset = test_dataset[:3]
+
             assert isinstance(gluonts_dataset.metadata.prediction_length, int)
             self.prediction_length = gluonts_dataset.metadata.prediction_length
             self.context_length = 2 * self.prediction_length
