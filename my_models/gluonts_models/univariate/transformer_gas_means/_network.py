@@ -282,7 +282,17 @@ class TransformerTrainingNetwork(TransformerNetwork):
         # but they are longer, so we take only last context_len values
         means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
         # compute mean layer prediction
-        pred_means = self.mean_layer(past_target, means, vars, feat_static_real)
+        pred_means, pred_vars = self.mean_layer(
+            past_target, means, vars, feat_static_real
+        )
+
+        # save the non normalized version of future target
+        if F.__name__ == "mxnet.ndarray":
+            future_target_non_normalized = future_target.copy()
+        else:
+            future_target_non_normalized = future_target
+        # normalize future_target for teacher forcing
+        future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
 
         """Now the original code"""
         # create the inputs for the encoder
@@ -313,13 +323,13 @@ class TransformerTrainingNetwork(TransformerNetwork):
         distr_args = self.proj_dist_args(dec_output)
 
         # finally recombine the output
-        new_distr_args = tuple(
-            [el if i != 0 else el + pred_means for i, el in enumerate(distr_args)]
-        )
+        new_means = pred_vars.sqrt() * distr_args[0] + pred_means
+        new_vars = pred_vars * distr_args[1]
+        new_distr_args = (new_means, new_vars, distr_args[2])
 
         # now again the original code
         distr = self.distr_output.distribution(new_distr_args, scale=scale)  ###
-        loss = distr.loss(future_target)
+        loss = distr.loss(future_target_non_normalized)
 
         # mask loss
         weighted_loss = weighted_average(
@@ -397,7 +407,9 @@ class TransformerPredictionNetwork(TransformerNetwork):
         # but they are longer, so we take only last context_len values
         means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
         # compute mean layer prediction
-        pred_means = self.mean_layer(past_target, means, vars, feat_static_real)
+        pred_means, pred_vars = self.mean_layer(
+            past_target, means, vars, feat_static_real
+        )
 
         # original code
         # blows-up the dimension of each tensor to batch_size *
@@ -419,6 +431,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
         repeated_pred_means = pred_means.repeat(
             repeats=self.num_parallel_samples, axis=0
         )
+        repeated_pred_vars = pred_vars.repeat(repeats=self.num_parallel_samples, axis=0)
         """ end """
 
         future_samples = []
@@ -459,14 +472,11 @@ class TransformerPredictionNetwork(TransformerNetwork):
 
             """My code here"""
             # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
-            new_distr_args = tuple(
-                [
-                    el
-                    if i != 0
-                    else el + repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
-                    for i, el in enumerate(distr_args)
-                ]
-            )
+            pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
+            pred_vars_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
+            new_mu = pred_vars_k.sqrt() * distr_args[0] + pred_means_k
+            new_var = pred_vars_k * distr_args[1]
+            new_distr_args = (new_mu, new_var, distr_args[2])
             # I hope that in distr_args[0] there is the mean
             """ end """
 
