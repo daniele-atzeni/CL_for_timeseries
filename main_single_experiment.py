@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     DL_MODEL_LIBRARY = "gluonts"  # "gluonts" or "torch"
     DL_MODEL_NAME = (
-        "transformer"  # "feedforward" or "transformer" or "deepar" or "wavenet"
+        "feedforward"  # "feedforward" or "transformer" or "deepar" or "wavenet"
     )
 
     if DL_MODEL_NAME == "transformer":

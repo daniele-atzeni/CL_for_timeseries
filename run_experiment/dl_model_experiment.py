@@ -14,7 +14,11 @@ from torch.utils.data import TensorDataset, DataLoader
 from my_models.gluonts_models.univariate.feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_linear,
 )
-from my_models.gluonts_models.univariate.feedforward_gas_means._estimator import (
+
+# from my_models.gluonts_models.univariate.feedforward_gas_means._estimator import (
+#    SimpleFeedForwardEstimator as FF_gluonts_gas,
+# )
+from my_models.gluonts_models.univariate.feedforward_gas_means_point._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_gas,
 )
 from my_models.gluonts_models.feedforward_multivariate_linear_means._estimator import (
