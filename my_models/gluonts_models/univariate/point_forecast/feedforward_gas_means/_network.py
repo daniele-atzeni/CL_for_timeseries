@@ -147,7 +147,7 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
             feat_static_real,
         )
         # maybe reshape
-        return pred
+        return pred.expand_dims(axis=1)
 
 
 class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
@@ -170,4 +170,4 @@ class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
             feat_static_real,
         )
         # maybe reshape
-        return pred
+        return pred.expand_dims(axis=1)

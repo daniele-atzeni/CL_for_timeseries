@@ -11,15 +11,14 @@ import mxnet as mx
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from my_models.gluonts_models.univariate.feedforward_linear_means._estimator import (
+from my_models.gluonts_models.univariate.probabilistic_forecast.feedforward_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_linear,
 )
-
-# from my_models.gluonts_models.univariate.feedforward_gas_means._estimator import (
-#    SimpleFeedForwardEstimator as FF_gluonts_gas,
-# )
-from my_models.gluonts_models.univariate.feedforward_gas_means_point._estimator import (
+from my_models.gluonts_models.univariate.probabilistic_forecast.feedforward_gas_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_gas,
+)
+from my_models.gluonts_models.univariate.point_forecast.feedforward_gas_means._estimator import (
+    SimpleFeedForwardEstimator as FF_gluonts_gas_point,
 )
 from my_models.gluonts_models.feedforward_multivariate_linear_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate_linear,
@@ -27,20 +26,26 @@ from my_models.gluonts_models.feedforward_multivariate_linear_means._estimator i
 from my_models.gluonts_models.feedforward_multivariate_gas_means._estimator import (
     SimpleFeedForwardEstimator as FF_gluonts_multivariate_gas,
 )
-from my_models.gluonts_models.univariate.transformer_linear_means._estimator import (
+from my_models.gluonts_models.univariate.probabilistic_forecast.transformer_linear_means._estimator import (
     TransformerEstimator as Transformer_gluonts_linear_means,
 )
-from my_models.gluonts_models.univariate.transformer_gas_means._estimator import (
+from my_models.gluonts_models.univariate.probabilistic_forecast.transformer_gas_means._estimator import (
     TransformerEstimator as Transformer_gluonts_gas_means,
+)
+from my_models.gluonts_models.univariate.point_forecast.transformer_gas_means._estimator import (
+    TransformerEstimator as Transformer_gluonts_gas_means_point,
 )
 from my_models.gluonts_models.transformer_multivariate_linear_means._estimator import (
     TransformerEstimator as Transformer_gluonts_multivariate_linear,
 )
-from my_models.gluonts_models.univariate.deepar_gas_means._estimator import (
+from my_models.gluonts_models.univariate.probabilistic_forecast.deepar_gas_means._estimator import (
     DeepAREstimator as Deepar_gluonts_gas_means,
 )
-from my_models.gluonts_models.univariate.deepar_linear_means._estimator import (
+from my_models.gluonts_models.univariate.probabilistic_forecast.deepar_linear_means._estimator import (
     DeepAREstimator as Deepar_gluonts_linear_means,
+)
+from my_models.gluonts_models.univariate.point_forecast.deepar_gas_means._estimator import (
+    DeepAREstimator as Deepar_gluonts_gas_means_point,
 )
 from my_models.gluonts_models.deepar_multivariate_linear_means._estimator import (
     DeepAREstimator as Deepar_gluonts_multivariate_linear_means,
@@ -121,18 +126,29 @@ def initialize_estimator(
     frequency,
     trainer,
     estimator_parameters,
+    probabilistic,
 ):
     if dl_model_name == "feedforward":
         if num_features == 1:
             if isinstance(trained_mean_layer, GASNormalizer):
-                estimator = FF_gluonts_gas(
-                    mean_layer,
-                    distr_output=StudentTOutput(),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
+                if probabilistic:
+                    estimator = FF_gluonts_gas(
+                        mean_layer,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
+                else:
+                    estimator = FF_gluonts_gas_point(
+                        mean_layer,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
             else:
                 estimator = FF_gluonts_linear(
                     mean_layer,
@@ -166,15 +182,26 @@ def initialize_estimator(
     elif dl_model_name == "transformer":
         if num_features == 1:
             if isinstance(trained_mean_layer, GASNormalizer):
-                estimator = Transformer_gluonts_gas_means(
-                    mean_layer,
-                    freq=frequency,
-                    distr_output=StudentTOutput(),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
+                if probabilistic:
+                    estimator = Transformer_gluonts_gas_means(
+                        mean_layer,
+                        freq=frequency,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
+                else:
+                    estimator = Transformer_gluonts_gas_means_point(
+                        mean_layer,
+                        freq=frequency,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
             else:
                 estimator = Transformer_gluonts_linear_means(
                     mean_layer,
@@ -202,15 +229,26 @@ def initialize_estimator(
     elif dl_model_name == "deepar":
         if num_features == 1:
             if isinstance(trained_mean_layer, GASNormalizer):
-                estimator = Deepar_gluonts_gas_means(
-                    mean_layer,
-                    freq=frequency,
-                    distr_output=StudentTOutput(),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
+                if probabilistic:
+                    estimator = Deepar_gluonts_gas_means(
+                        mean_layer,
+                        freq=frequency,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
+                else:
+                    estimator = Deepar_gluonts_gas_means_point(
+                        mean_layer,
+                        freq=frequency,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
             else:
                 estimator = Deepar_gluonts_linear_means(
                     mean_layer,
@@ -229,15 +267,18 @@ def initialize_estimator(
     elif dl_model_name == "wavenet":
         if num_features == 1:
             if isinstance(trained_mean_layer, GASNormalizer):
-                estimator = Wavenet_gluonts_gas_means(
-                    mean_layer,
-                    freq=frequency,
-                    distr_output=StudentTOutput(),
-                    prediction_length=prediction_length,
-                    context_length=context_length,
-                    trainer=trainer,
-                    **estimator_parameters,
-                )
+                if probabilistic:
+                    raise ValueError("Probabilistic Wavenet gas not implemented.")
+                else:
+                    estimator = Wavenet_gluonts_gas_means(
+                        mean_layer,
+                        freq=frequency,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
             else:
                 raise ValueError("Wavenet linear not implemented.")
         else:
@@ -260,6 +301,7 @@ def experiment_gluonts(
     dl_model_name: str,
     dl_model_params: dict,
     folders: dict,
+    probabilistic: bool = False,
 ) -> None:
     # retrieve the dataset
     gluonts_train_dataset, gluonts_test_dataset = dataset
@@ -318,6 +360,7 @@ def experiment_gluonts(
         frequency,
         trainer,
         estimator_parameters,
+        probabilistic,
     )
 
     # TRAIN THE ESTIMATOR
