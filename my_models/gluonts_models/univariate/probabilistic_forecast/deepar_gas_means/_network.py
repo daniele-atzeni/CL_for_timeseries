@@ -565,9 +565,11 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         static_feat = F.concat(
             embedded_cat,
             feat_static_real,
-            F.log(scale)
-            if len(self.target_shape) == 0
-            else F.log(scale.squeeze(axis=1)),
+            (
+                F.log(scale)
+                if len(self.target_shape) == 0
+                else F.log(scale.squeeze(axis=1))
+            ),
             dim=1,
         )
 
@@ -717,9 +719,11 @@ class DeepARNetwork(mx.gluon.HybridBlock):
         static_feat = F.concat(
             embedded_cat,
             feat_static_real,
-            F.log(scale)
-            if len(self.target_shape) == 0
-            else F.log(scale.squeeze(axis=1)),
+            (
+                F.log(scale)
+                if len(self.target_shape) == 0
+                else F.log(scale.squeeze(axis=1))
+            ),
             dim=1,
         )
 
@@ -1160,7 +1164,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
 
             distr_args = self.proj_distr_args(rnn_outputs)  # mu sigma nu
 
-            """My code here"""
+            """My code here
             # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
             pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
             pred_var_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
@@ -1168,7 +1172,7 @@ class DeepARPredictionNetwork(DeepARNetwork):
             new_sigma = pred_var_k * distr_args[1]
             distr_args = (new_mu, new_sigma, distr_args[2])
             # I hope that in distr_args[0] there is the mean
-            """ end """
+            end """
 
             # compute likelihood of target given the predicted parameters
             distr = self.distr_output.distribution(
@@ -1185,6 +1189,11 @@ class DeepARPredictionNetwork(DeepARNetwork):
 
         # (batch_size * num_samples, prediction_length, *target_shape)
         samples = F.concat(*future_samples, dim=1)
+
+        # scale back
+        samples = (
+            samples * repeated_scale.sqrt() + repeated_pred_means
+        )  ###############################
 
         # (batch_size, num_samples, prediction_length, *target_shape)
         return samples.reshape(
