@@ -101,6 +101,7 @@ def run_gas_experiment(
     n_test_samples: int = 1000,
     stop_after_normalizer: bool = False,
     stop_after_mean_layer: bool = False,
+    probabilistic: bool = False,
 ) -> tuple:
     # INITIALIZE ROOT FOLDERS
     root_folder = init_folder(root_folder_name)
@@ -207,6 +208,7 @@ def run_gas_experiment(
             dl_model_name,
             dl_model_params,
             dl_folders,
+            probabilistic,
         )
     elif dl_model_library == "torch":
         experiment_torch(

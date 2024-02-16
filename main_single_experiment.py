@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     DL_MODEL_LIBRARY = "gluonts"  # "gluonts" or "torch"
     DL_MODEL_NAME = (
-        "feedforward"  # "feedforward" or "transformer" or "deepar" or "wavenet"
+        "transformer"  # "feedforward" or "transformer" or "deepar" or "wavenet"
     )
 
     if DL_MODEL_NAME == "transformer":
@@ -36,6 +36,7 @@ if __name__ == "__main__":
     else:
         DL_MODEL_PARAMS = gluonts_feedforward_params
 
+    PROBABILISTIC = True
     N_TRAINING_SAMPLES = 5000
     N_TEST_SAMPLES = 1000
 
@@ -55,9 +56,10 @@ if __name__ == "__main__":
         DL_MODEL_LIBRARY,
         DL_MODEL_NAME,
         DATASET_FILE_FOLDER,
-        NORMALIZER_PARAMS,
-        MEAN_LAYER_PARAMS,
-        DL_MODEL_PARAMS,
-        N_TRAINING_SAMPLES,
-        N_TEST_SAMPLES,
+        normalizer_params=NORMALIZER_PARAMS,
+        mean_layer_params=MEAN_LAYER_PARAMS,
+        dl_model_params=DL_MODEL_PARAMS,
+        n_training_samples=N_TRAINING_SAMPLES,
+        n_test_samples=N_TEST_SAMPLES,
+        probabilistic=PROBABILISTIC,
     )
