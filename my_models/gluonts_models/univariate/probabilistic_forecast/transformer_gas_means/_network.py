@@ -465,15 +465,12 @@ class TransformerPredictionNetwork(TransformerNetwork):
 
             # compute likelihood of target given the predicted parameters
             distr = self.distr_output.distribution(
-                new_distr_args, scale=repeated_scale  ###
-            )
-            norm_distr = self.distr_output.distribution(
-                distr_args, scale=repeated_scale
+                new_distr_args, scale=repeated_scale 
             )
 
             # (batch_size * num_samples, 1, *target_shape)
             pred_samples = distr.sample()
-            ar_samples = norm_distr.sample()
+            ar_samples = (pred_samples - pred_means_k) / pred_vars_k.sqrt()
 
             # (batch_size * num_samples, seq_len, *target_shape)
             repeated_past_target = F.concat(repeated_past_target, ar_samples, dim=1)
