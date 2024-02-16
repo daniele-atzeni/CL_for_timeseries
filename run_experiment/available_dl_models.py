@@ -31,9 +31,6 @@ from my_models.gluonts_models.univariate.probabilistic_forecast.deepar_gas_means
 from my_models.gluonts_models.univariate.probabilistic_forecast.deepar_linear_means._estimator import (
     DeepAREstimator as Deepar_gluonts_linear,
 )
-from my_models.gluonts_models.univariate.point_forecast.deepar_gas_means._estimator import (
-    DeepAREstimator as Deepar_gluonts_gas_point,
-)
 from my_models.gluonts_models.deepar_multivariate_linear_means._estimator import (
     DeepAREstimator as Deepar_gluonts_multivariate_linear,
 )
@@ -62,4 +59,8 @@ available_dl_models = {
         False,
     ): Transformer_gluonts_gas_point,
     # ("transformer", "gluonts", "linear", True, True): Transformer_gluonts_multivariate_linear,
+    ("deepar", "gluonts", "gas", False, True): Deepar_gluonts_gas,
+    #("deepar", "gluonts", "linear", False, True): Deepar_gluonts_linear,
+    #("deepar", "gluonts", "gas", True, True): Deepar_gluonts_multivariate_gas,
+    #("deepar", "gluonts", "linear", True, True): Deepar_gluonts_multivariate_linear,
 }

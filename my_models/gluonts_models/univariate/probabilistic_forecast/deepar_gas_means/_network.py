@@ -872,7 +872,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
         )
 
         new_mu_pred = pred_vars.sqrt() * mu_pred + pred_means
-        new_mu = F.concat(mu_context, mu_pred, dim=1)
+        new_mu = F.concat(mu_context, new_mu_pred, dim=1)
         new_sigma_pred = sigma_pred * pred_vars
         new_sigma = F.concat(sigma_context, new_sigma_pred, dim=1)
         distr_args = (new_mu, new_sigma, distr_args[2])
@@ -927,28 +927,39 @@ class DeepARTrainingNetwork(DeepARNetwork):
         -------
         """
         # retrieve the data
-        means = F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1)
-        # means = F.squeeze(means)
-        vars = F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2)
-        # vars = F.squeeze(vars)
+        means = past_feat_dynamic_real.slice(
+            begin=(None, None, 0),
+            end=(None, None, 1),
+        )  # (batch, context_length, 1)
+        vars = past_feat_dynamic_real.slice(
+            begin=(None, None, 1),
+            end=(None, None, 2),
+        )  # (batch, context_length, 1)
+
         # normalize past_target
-        if F.__name__ == "mxnet.ndarray":
-            non_norm_past_target = past_target.copy()
-        else:
-            non_norm_past_target = past_target
-        # old_past_target = past_target
-        past_target = (past_target - F.squeeze(means)) / (F.squeeze(vars).sqrt() + 1e-8)
+        norm_past_target = (past_target - F.squeeze(means)) / (
+            F.sqrt(F.squeeze(vars)) + 1e-8
+        )
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
-        means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
-        vars = F.slice_axis(vars, axis=1, begin=-self.context_length, end=None)
-        # mean predictions
-        pred_means, pred_vars = self.mean_layer(
-            past_target, means, vars, feat_static_real
+        means_for_mean_l = F.slice_axis(
+            means, axis=1, begin=-self.context_length, end=None
         )
-        # we must scale down the future target that is going to be used for teacher forcing
-        scaled_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
+        vars_for_mean_l = F.slice_axis(
+            vars, axis=1, begin=-self.context_length, end=None
+        )
+        past_target_for_mean_l = F.slice_axis(
+            past_target, axis=1, begin=-self.context_length, end=None
+        )
+        # compute mean layer prediction
+        pred_means, pred_vars = self.mean_layer(
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+        )
+
+        # normalize future_target for teacher forcing
+        norm_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
+
         # we don't want to use feat_static_real anymore, so we set it to zeros
         feat_static_real = F.zeros_like(feat_static_cat)
 
@@ -956,16 +967,17 @@ class DeepARTrainingNetwork(DeepARNetwork):
             feat_static_cat=feat_static_cat,
             feat_static_real=feat_static_real,
             past_time_feat=past_time_feat,
-            past_target=past_target,
+            past_target=norm_past_target,
             past_observed_values=past_observed_values,
             past_is_pad=past_is_pad,
             future_time_feat=future_time_feat,
-            future_target=scaled_future_target,
+            future_target=norm_future_target,
             future_observed_values=future_observed_values,
             return_rnn_outputs=True,
             pred_means=pred_means,  ###
             pred_vars=pred_vars,  ###
         )
+
         # since return_rnn_outputs=True, assert:
         assert isinstance(outputs, tuple)
         distr, rnn_outputs = outputs
@@ -973,7 +985,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
         # put together target sequence
         # (batch_size, seq_len, *target_shape)
         target = F.concat(
-            non_norm_past_target.slice_axis(
+            past_target.slice_axis(
                 axis=1,
                 begin=self.history_length - self.context_length,
                 end=None,
@@ -1046,8 +1058,8 @@ class DeepARPredictionNetwork(DeepARNetwork):
         time_feat: Tensor,
         scale: Tensor,
         begin_states: List,
-        past_feat_dynamic_real: Tensor,  ###
-        feat_static_real: Tensor,  ###
+        pred_means:Tensor,
+        pred_vars:Tensor,
     ) -> Tensor:
         """
         Computes sample paths by unrolling the LSTM starting with a initial
@@ -1074,28 +1086,11 @@ class DeepARPredictionNetwork(DeepARNetwork):
             A tensor containing sampled paths.
             Shape: (batch_size, num_sample_paths, prediction_length).
         """
-        # retrieve the data
-        means = F.slice_axis(past_feat_dynamic_real, axis=2, begin=0, end=1)
-        # means = F.squeeze(means)
-        vars = F.slice_axis(past_feat_dynamic_real, axis=2, begin=1, end=2)
-        # vars = F.squeeze(vars)
-        # normalize past_target
-        past_target = (past_target - F.squeeze(means)) / (F.squeeze(vars).sqrt() + 1e-8)
-
         ###########
         # set scale to ones
-        # scale = F.ones_like(scale)
+        scale = F.ones_like(scale)
         ###########
 
-        # in this case, the past_* are not shaped as (batch_size, context_len, ...)
-        # but they are longer, so we take only last context_len values
-        means = F.slice_axis(means, axis=1, begin=-self.context_length, end=None)
-        # mean predictions
-        pred_means, pred_vars = self.mean_layer(
-            past_target, means, vars, feat_static_real
-        )
-
-        # original code here
         # blows-up the dimension of each tensor to batch_size *
         # self.num_parallel_samples for increasing parallelism
         repeated_past_target = past_target.repeat(
@@ -1164,36 +1159,31 @@ class DeepARPredictionNetwork(DeepARNetwork):
 
             distr_args = self.proj_distr_args(rnn_outputs)  # mu sigma nu
 
-            """My code here
+            """My code here"""
             # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
             pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
-            pred_var_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
-            new_mu = pred_var_k.sqrt() * distr_args[0] + pred_means_k
-            new_sigma = pred_var_k * distr_args[1]
-            distr_args = (new_mu, new_sigma, distr_args[2])
+            pred_vars_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
+            new_mu = pred_vars_k.sqrt() * distr_args[0] + pred_means_k
+            new_var = pred_vars_k * distr_args[1]
+            distr_args = (new_mu, new_var, distr_args[2])
             # I hope that in distr_args[0] there is the mean
-            end """
+            """end """
 
             # compute likelihood of target given the predicted parameters
             distr = self.distr_output.distribution(
-                distr_args, scale=None
-            )  # scale=repeated_scale)
+                distr_args, scale=repeated_scale)
 
             # (batch_size * num_samples, 1, *target_shape)
-            new_samples = distr.sample(dtype=self.dtype)
+            pred_samples = distr.sample(dtype=self.dtype)
+            ar_samples = (pred_samples - pred_means_k) / pred_vars_k.sqrt()
 
             # (batch_size * num_samples, seq_len, *target_shape)
-            repeated_past_target = F.concat(repeated_past_target, new_samples, dim=1)
+            repeated_past_target = F.concat(repeated_past_target, ar_samples, dim=1)
 
-            future_samples.append(new_samples)
+            future_samples.append(pred_samples)
 
         # (batch_size * num_samples, prediction_length, *target_shape)
         samples = F.concat(*future_samples, dim=1)
-
-        # scale back
-        samples = (
-            samples * repeated_scale.sqrt() + repeated_pred_means
-        )  ###############################
 
         # (batch_size, num_samples, prediction_length, *target_shape)
         return samples.reshape(
@@ -1235,13 +1225,44 @@ class DeepARPredictionNetwork(DeepARNetwork):
         Tensor
             Predicted samples
         """
+        # retrieve the data
+        means = past_feat_dynamic_real.slice(
+            begin=(None, None, 0),
+            end=(None, None, 1),
+        )  # (batch, context_length, 1)
+        vars = past_feat_dynamic_real.slice(
+            begin=(None, None, 1),
+            end=(None, None, 2),
+        )  # (batch, context_length, 1)
+
+        # normalize past_target
+        norm_past_target = (past_target - F.squeeze(means)) / (
+            F.sqrt(F.squeeze(vars)) + 1e-8
+        )
+
+        # in this case, the past_* are not shaped as (batch_size, context_len, ...)
+        # but they are longer, so we take only last context_len values
+        means_for_mean_l = F.slice_axis(
+            means, axis=1, begin=-self.context_length, end=None
+        )
+        vars_for_mean_l = F.slice_axis(
+            vars, axis=1, begin=-self.context_length, end=None
+        )
+        past_target_for_mean_l = F.slice_axis(
+            past_target, axis=1, begin=-self.context_length, end=None
+        )
+        # compute mean layer prediction
+        pred_means, pred_vars = self.mean_layer(
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+        )
+
         # unroll the decoder in "prediction mode", i.e. with past data only
         _, state, scale, static_feat, imputed_sequence = self.unroll_encoder(
             F=F,
             feat_static_cat=feat_static_cat,
             feat_static_real=F.zeros_like(feat_static_cat),
             past_time_feat=past_time_feat,
-            past_target=past_target,
+            past_target=norm_past_target,
             past_is_pad=past_is_pad,
             past_observed_values=past_observed_values,
             future_observed_values=None,
@@ -1255,6 +1276,6 @@ class DeepARPredictionNetwork(DeepARNetwork):
             static_feat=static_feat,
             scale=scale,
             begin_states=state,
-            past_feat_dynamic_real=past_feat_dynamic_real,  ###
-            feat_static_real=feat_static_real,  ###
+            pred_means=pred_means,
+            pred_vars=pred_vars,
         )
