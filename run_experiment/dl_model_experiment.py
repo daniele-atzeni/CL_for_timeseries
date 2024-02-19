@@ -45,13 +45,16 @@ from my_models.gluonts_models.univariate.probabilistic_forecast.deepar_linear_me
     DeepAREstimator as Deepar_gluonts_linear_means,
 )
 from my_models.gluonts_models.univariate.point_forecast.deepar_gas_means._estimator import (
-    DeepAREstimator as Deepar_gluonts_gas_means_point,
+    DeepAREstimator as Deepar_gluonts_gas_point,
 )
 from my_models.gluonts_models.deepar_multivariate_linear_means._estimator import (
-    DeepAREstimator as Deepar_gluonts_multivariate_linear_means,
+    DeepAREstimator as Deepar_gluonts_multivariate_linear,
 )
 from my_models.gluonts_models.univariate.wavenet_gas_means._estimator import (
-    WaveNetEstimator as Wavenet_gluonts_gas_means,
+    WaveNetEstimator as Wavenet_gluonts_gas,
+)
+from my_models.gluonts_models.univariate.probabilistic_forecast.seq2seq import (
+    MQCNNEstimator as Mqcnn_gluonts_gas,
 )
 
 from my_models.pytorch_models.simple_feedforward import FFNN as FF_torch
@@ -240,7 +243,7 @@ def initialize_estimator(
                         **estimator_parameters,
                     )
                 else:
-                    estimator = Deepar_gluonts_gas_means_point(
+                    estimator = Deepar_gluonts_gas_point(
                         mean_layer,
                         freq=frequency,
                         distr_output=StudentTOutput(),
@@ -270,7 +273,7 @@ def initialize_estimator(
                 if probabilistic:
                     raise ValueError("Probabilistic Wavenet gas not implemented.")
                 else:
-                    estimator = Wavenet_gluonts_gas_means(
+                    estimator = Wavenet_gluonts_gas(
                         mean_layer,
                         freq=frequency,
                         distr_output=StudentTOutput(),
@@ -286,6 +289,28 @@ def initialize_estimator(
                 raise ValueError("Multivariate Wavenet gas not implemented.")
             else:
                 raise ValueError("Multivariate Wavenet linear not implemented.")
+    elif dl_model_name == "mqcnn":
+        if num_features == 1:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                if probabilistic:
+                    estimator = Mqcnn_gluonts_gas(
+                        mean_layer,
+                        freq=frequency,
+                        distr_output=StudentTOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
+                else:
+                    raise ValueError("Point forecasrt MQ-CNN gas not implemented.")
+            else:
+                raise ValueError("MQ-CNN linear not implemented.")
+        else:
+            if isinstance(trained_mean_layer, GASNormalizer):
+                raise ValueError("Multivariate MQ-CNN gas not implemented.")
+            else:
+                raise ValueError("Multivariate MQ-CNN linear not implemented.")
     else:
         raise ValueError(f"Unknown estimator name: {dl_model_name}")
     return estimator

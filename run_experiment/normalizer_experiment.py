@@ -15,7 +15,7 @@ def experiment_normalizer(
     initial_guesses: np.ndarray,
     bounds: tuple,
     folders: dict,
-) -> GASNormalizer:
+) -> tuple[GASNormalizer, tuple]:
     # normalizer is able to compute
     # - ideal initial guesses and static parameters of the normalizer for each time series in the dataset
     # - normalized time series, means, and variances for each time series in the dataset
@@ -66,4 +66,10 @@ def experiment_normalizer(
     save_list_of_elements(folders["test_means"], test_means)
     save_list_of_elements(folders["test_vars"], test_vars)
 
-    return normalizer
+    return normalizer, (
+        train_means,
+        train_vars,
+        test_means,
+        test_vars,
+        train_normalizer_params,
+    )

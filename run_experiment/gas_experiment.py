@@ -1,11 +1,10 @@
 import os
-import pickle
 
 import numpy as np
 
 from data_manager import GluonTSDataManager
 
-from utils import init_folder, load_list_of_elements
+from utils import init_folder
 
 from run_experiment.normalizer_experiment import experiment_normalizer
 from run_experiment.mean_layer_experiment import (
@@ -45,16 +44,6 @@ def init_folders_for_normalizer(root_folder: str) -> dict:
         "test_means": test_means_folder,
         "test_vars": test_vars_folder,
     }
-
-
-def get_data_for_mean_layer(normalizer_folders: dict) -> tuple:
-    train_means = load_list_of_elements(normalizer_folders["train_means"])
-    train_vars = load_list_of_elements(normalizer_folders["train_vars"])
-    test_means = load_list_of_elements(normalizer_folders["test_means"])
-    test_vars = load_list_of_elements(normalizer_folders["test_vars"])
-    train_norm_params = load_list_of_elements(normalizer_folders["train_params"])
-
-    return train_means, train_vars, test_means, test_vars, train_norm_params
 
 
 def init_folders_for_mean_layer(root_folder: str) -> dict:
@@ -99,8 +88,6 @@ def run_gas_experiment(
     dl_model_params: dict = {},
     n_training_samples: int = 5000,
     n_test_samples: int = 1000,
-    stop_after_normalizer: bool = False,
-    stop_after_mean_layer: bool = False,
     probabilistic: bool = False,
 ) -> tuple:
     # INITIALIZE ROOT FOLDERS
@@ -137,7 +124,7 @@ def run_gas_experiment(
     normalizer_folders = init_folders_for_normalizer(root_folder)
 
     # this function computes and saves results and parameters from the normalization
-    normalizer = experiment_normalizer(
+    normalizer, processed_data = experiment_normalizer(
         normalizer_name,
         normalizer_params,
         data_manager.get_dataset_for_normalizer(),
@@ -146,25 +133,15 @@ def run_gas_experiment(
         normalizer_folders,
     )
 
+    # set the data for the next steps
+    data_manager.set_data_from_normalizer(*processed_data)
+
     # MEAN LAYER PHASE
     # with this phase we will save
     # - mean layer initialization parameters
     # - trained mean layer
     # - score of the training phase
     # - mean_layer next point predictions for each time series in the test dataset
-
-    # we have to load some data again for the next steps
-    (
-        train_means,
-        train_vars,
-        test_means,
-        test_vars,
-        train_norm_params,
-    ) = get_data_for_mean_layer(normalizer_folders)
-
-    data_manager.set_data_from_normalizer(
-        train_means, train_vars, test_means, test_vars, train_norm_params
-    )
 
     mean_layer_folders = init_folders_for_mean_layer(root_folder)
 
