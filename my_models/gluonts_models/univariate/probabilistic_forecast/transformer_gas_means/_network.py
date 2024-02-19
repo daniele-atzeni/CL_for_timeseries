@@ -329,7 +329,7 @@ class TransformerTrainingNetwork(TransformerNetwork):
 
         # finally recombine the output
         new_means = pred_vars.sqrt() * distr_args[0] + pred_means
-        new_vars = pred_vars * distr_args[1]
+        new_vars = pred_vars.sqrt() * distr_args[1]
         new_distr_args = (new_means, new_vars, distr_args[2])
 
         # now again the original code
@@ -458,15 +458,13 @@ class TransformerPredictionNetwork(TransformerNetwork):
             pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
             pred_vars_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
             new_mu = pred_vars_k.sqrt() * distr_args[0] + pred_means_k
-            new_var = pred_vars_k * distr_args[1]
+            new_var = pred_vars_k.sqrt() * distr_args[1]
             new_distr_args = (new_mu, new_var, distr_args[2])
             # I hope that in distr_args[0] there is the mean
             """ end """
 
             # compute likelihood of target given the predicted parameters
-            distr = self.distr_output.distribution(
-                new_distr_args, scale=repeated_scale 
-            )
+            distr = self.distr_output.distribution(new_distr_args, scale=repeated_scale)
 
             # (batch_size * num_samples, 1, *target_shape)
             pred_samples = distr.sample()

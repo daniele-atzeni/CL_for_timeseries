@@ -110,7 +110,7 @@ class SimpleFeedForwardNetworkBase(mx.gluon.HybridBlock):
         # add mean layer predictions to the predicted mean parameter of the distribution
         # mean parameter in our case is the 0th element of distr_args
         new_means = pred_vars.sqrt() * distr_args[0] + pred_means
-        new_vars = pred_vars * distr_args[1]
+        new_vars = pred_vars.sqrt() * distr_args[1]
         distr_args = (new_means, new_vars, distr_args[2])
 
         return distr_args, loc, scale  # type:ignore I know its a tuple of Tensors

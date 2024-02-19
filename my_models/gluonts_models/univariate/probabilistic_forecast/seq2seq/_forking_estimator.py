@@ -271,7 +271,7 @@ class ForkingSeq2SeqEstimator(GluonEstimator):
         dynamic_feat_fields = []
         remove_field_names = [
             FieldName.FEAT_DYNAMIC_CAT,
-            FieldName.FEAT_STATIC_REAL,
+            # FieldName.FEAT_STATIC_REAL,
         ]
 
         # --- GENERAL TRANSFORMATION CHAIN ---
@@ -280,7 +280,8 @@ class ForkingSeq2SeqEstimator(GluonEstimator):
         if not self.use_past_feat_dynamic_real:
             remove_field_names.append(FieldName.PAST_FEAT_DYNAMIC_REAL)
         if not self.use_feat_dynamic_real:
-            remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
+            pass  # don't want to remove this
+            # remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
         if not self.use_feat_static_cat:
             remove_field_names.append(FieldName.FEAT_STATIC_CAT)
 
@@ -403,7 +404,8 @@ class ForkingSeq2SeqEstimator(GluonEstimator):
                     [FieldName.PAST_FEAT_DYNAMIC_REAL]
                     if self.use_past_feat_dynamic_real
                     else []
-                ),
+                )
+                + ([FieldName.FEAT_DYNAMIC_REAL]),  #####
                 encoder_disabled_fields=(
                     [FieldName.FEAT_DYNAMIC]
                     if not self.enable_encoder_dynamic_feature

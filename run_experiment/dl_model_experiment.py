@@ -273,6 +273,7 @@ def initialize_estimator(
                 if probabilistic:
                     raise ValueError("Probabilistic Wavenet gas not implemented.")
                 else:
+                    """
                     estimator = Wavenet_gluonts_gas(
                         mean_layer,
                         freq=frequency,
@@ -282,6 +283,8 @@ def initialize_estimator(
                         trainer=trainer,
                         **estimator_parameters,
                     )
+                    """
+                    raise ValueError("Point forecast Wavenet gas not implemented.")
             else:
                 raise ValueError("Wavenet linear not implemented.")
         else:
@@ -410,9 +413,9 @@ def experiment_gluonts(
     else:
         evaluator = MultivariateEvaluator(**evaluator_parameters)
 
-    agg_metrics, item_metrics = evaluator(tss, forecasts)  # type: ignore # we are sure that tss is a list of DataFrame in multivariate case
+    #agg_metrics, item_metrics = evaluator(tss, forecasts)  # type: ignore # we are sure that tss is a list of DataFrame in multivariate case
     # print(json.dumps(agg_metrics, indent=4))
-    print(item_metrics.head())
+    #print(item_metrics.head())
 
     # SAVE EVERYTHING
     # save initialization parameters
@@ -422,9 +425,9 @@ def experiment_gluonts(
     with open(dl_model_filename, "wb") as f:
         pickle.dump(predictor, f)
     # save agg_metrics as json and item_metrics as csv
-    with open(os.path.join(results_folder, "agg_metrics.json"), "w") as f:
-        json.dump(agg_metrics, f)
-    item_metrics.to_csv(os.path.join(results_folder, "item_metrics.csv"))
+    #with open(os.path.join(results_folder, "agg_metrics.json"), "w") as f:
+    #    json.dump(agg_metrics, f)
+    #item_metrics.to_csv(os.path.join(results_folder, "item_metrics.csv"))
 
 
 def experiment_torch(

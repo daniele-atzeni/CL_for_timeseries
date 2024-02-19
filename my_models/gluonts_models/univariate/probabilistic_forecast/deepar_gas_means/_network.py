@@ -873,7 +873,7 @@ class DeepARTrainingNetwork(DeepARNetwork):
 
         new_mu_pred = pred_vars.sqrt() * mu_pred + pred_means
         new_mu = F.concat(mu_context, new_mu_pred, dim=1)
-        new_sigma_pred = sigma_pred * pred_vars
+        new_sigma_pred = sigma_pred * pred_vars.sqrt()
         new_sigma = F.concat(sigma_context, new_sigma_pred, dim=1)
         distr_args = (new_mu, new_sigma, distr_args[2])
 
@@ -1058,8 +1058,8 @@ class DeepARPredictionNetwork(DeepARNetwork):
         time_feat: Tensor,
         scale: Tensor,
         begin_states: List,
-        pred_means:Tensor,
-        pred_vars:Tensor,
+        pred_means: Tensor,
+        pred_vars: Tensor,
     ) -> Tensor:
         """
         Computes sample paths by unrolling the LSTM starting with a initial
@@ -1164,14 +1164,13 @@ class DeepARPredictionNetwork(DeepARNetwork):
             pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
             pred_vars_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
             new_mu = pred_vars_k.sqrt() * distr_args[0] + pred_means_k
-            new_var = pred_vars_k * distr_args[1]
+            new_var = pred_vars_k.sqrt() * distr_args[1]
             distr_args = (new_mu, new_var, distr_args[2])
             # I hope that in distr_args[0] there is the mean
             """end """
 
             # compute likelihood of target given the predicted parameters
-            distr = self.distr_output.distribution(
-                distr_args, scale=repeated_scale)
+            distr = self.distr_output.distribution(distr_args, scale=repeated_scale)
 
             # (batch_size * num_samples, 1, *target_shape)
             pred_samples = distr.sample(dtype=self.dtype)

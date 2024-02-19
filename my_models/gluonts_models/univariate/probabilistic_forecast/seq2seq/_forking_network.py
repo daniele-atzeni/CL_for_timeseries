@@ -258,9 +258,8 @@ class ForkingSeq2SeqTrainingNetwork(ForkingSeq2SeqNetworkBase):
         )  # (batch, context_length, 1)
 
         # normalize past_target
-        norm_past_target = (past_target - F.squeeze(means)) / (
-            F.sqrt(F.squeeze(vars)) + 1e-8
-        )
+        # past_target shape: (batch_size, encoder_length, 1)
+        norm_past_target = (past_target - means) / (F.sqrt(vars) + 1e-8)
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
@@ -303,8 +302,11 @@ class ForkingSeq2SeqTrainingNetwork(ForkingSeq2SeqNetworkBase):
         assert self.distr_output is not None
         distr_args = self.distr_args_proj(dec_output)
         # de-normalize
+        # distr_args elements are shape (batch, context, prediction)
+        pred_means = pred_means.expand_dims(axis=1)
+        pred_vars = pred_vars.expand_dims(axis=1)
         new_means = pred_vars.sqrt() * distr_args[0] + pred_means
-        new_vars = pred_vars * distr_args[1]
+        new_vars = pred_vars.sqrt() * distr_args[1]
         new_distr_args = (new_means, new_vars, distr_args[2])
 
         distr = self.distr_output.distribution(
@@ -330,8 +332,6 @@ class ForkingSeq2SeqPredictionNetwork(ForkingSeq2SeqNetworkBase):
         future_feat_dynamic: Tensor,
         feat_static_cat: Tensor,
         past_observed_values: Tensor,
-        past_feat_dynamic_real: Tensor,
-        feat_static_real: Tensor,
     ) -> Tensor:
         """
         Parameters
@@ -386,6 +386,8 @@ class ForkingSeq2SeqDistributionPredictionNetwork(ForkingSeq2SeqNetworkBase):
         future_feat_dynamic: Tensor,
         feat_static_cat: Tensor,
         past_observed_values: Tensor,
+        past_feat_dynamic_real: Tensor,
+        feat_static_real: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Parameters
@@ -420,9 +422,7 @@ class ForkingSeq2SeqDistributionPredictionNetwork(ForkingSeq2SeqNetworkBase):
         )  # (batch, context_length, 1)
 
         # normalize past_target
-        norm_past_target = (past_target - F.squeeze(means)) / (
-            F.sqrt(F.squeeze(vars)) + 1e-8
-        )
+        norm_past_target = (past_target - means) / (F.sqrt(vars) + 1e-8)
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
@@ -454,8 +454,9 @@ class ForkingSeq2SeqDistributionPredictionNetwork(ForkingSeq2SeqNetworkBase):
         distr_args = self.distr_args_proj(fcst_output)
 
         # finally recombine the output
+        # distr_args elements are shape (batch, context, prediction)
         new_means = pred_vars.sqrt() * distr_args[0] + pred_means
-        new_vars = pred_vars * distr_args[1]
+        new_vars = pred_vars.sqrt() * distr_args[1]
         new_distr_args = (new_means, new_vars, distr_args[2])
 
         loc = F.zeros_like(scale)

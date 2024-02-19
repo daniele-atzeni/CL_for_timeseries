@@ -286,7 +286,7 @@ class MQCNNEstimator(ForkingSeq2SeqEstimator):
 
         return {
             "use_past_feat_dynamic_real": stats.num_past_feat_dynamic_real > 0,
-            "use_feat_dynamic_real": False,  # stats.num_feat_dynamic_real > 0,
+            "use_feat_dynamic_real": stats.num_feat_dynamic_real > 0,
             "use_feat_static_cat": bool(stats.feat_static_cat),
             "cardinality": [len(cats) for cats in stats.feat_static_cat],
             "max_ts_len": stats.max_target_length,
