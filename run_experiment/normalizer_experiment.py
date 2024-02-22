@@ -12,6 +12,7 @@ def experiment_normalizer(
     normalizer_name: str,
     normalizer_parameters: dict,
     datasets: tuple[list[np.ndarray], list[np.ndarray]],
+    context_length: int,
     initial_guesses: np.ndarray,
     bounds: tuple,
     folders: dict,
@@ -30,9 +31,13 @@ def experiment_normalizer(
     train_dataset, test_dataset = datasets
 
     print("Warming up train dataset...")
-    train_normalizer_params = normalizer.warm_up(train_dataset, initial_guesses, bounds)
+    train_normalizer_params = normalizer.warm_up(
+        train_dataset, context_length, initial_guesses, bounds
+    )
     print("Warming up test dataset...")
-    test_normalizer_params = normalizer.warm_up(test_dataset, initial_guesses, bounds)
+    test_normalizer_params = normalizer.warm_up(
+        test_dataset, context_length, initial_guesses, bounds
+    )
     print("Done.")
 
     # NORMALIZE THE DATASET

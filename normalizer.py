@@ -52,6 +52,7 @@ class GASNormalizer:
     def warm_up(
         self,
         dataset: list[np.ndarray],
+        context_length: int,
         initial_guesses: np.ndarray,
         bounds: tuple,
     ) -> list:
@@ -78,17 +79,20 @@ class GASNormalizer:
 
             def ts_inner_func(ts):
                 ts_initial_guesses = initial_guesses.copy()
-                ts_initial_guesses[0] = np.mean(ts, axis=0)
-                ts_initial_guesses[1] = np.var(ts, axis=0)
+                mean_0 = np.mean(ts[:context_length], axis=0)
+                var_0 = np.var(ts[:context_length], axis=0)
 
                 def func_to_minimize(x):
                     # we must first unpack the input
-                    return self.compute_neg_log_likelihood(ts.squeeze(), *x)
+                    return self.compute_neg_log_likelihood(
+                        ts.squeeze(), mean_0, var_0, *x
+                    )
 
                 optimal = minimize(
                     func_to_minimize, x0=ts_initial_guesses, bounds=bounds
                 )
-                return optimal.x
+                # we need to add the values we compute before the optimization
+                return np.concatenate([mean_0, var_0, optimal.x])
 
             results = Parallel(n_jobs=-1, verbose=verbose)(
                 delayed(ts_inner_func)(ts) for ts in dataset
@@ -102,20 +106,23 @@ class GASNormalizer:
                 def feat_inner_func(feat):
                     # update initial guesses based on the time series
                     ts_initial_guesses = initial_guesses.copy()
-                    ts_initial_guesses[0] = np.mean(ts[:, feat], axis=0)
-                    ts_initial_guesses[1] = np.var(ts[:, feat], axis=0)
+                    mean_0 = np.mean(ts[:context_length, feat], axis=0)
+                    var_0 = np.var(ts[:context_length, feat], axis=0)
 
                     # we define the function to minimize
                     def func_to_minimize(x):
                         # we must first unpack the input
-                        return self.compute_neg_log_likelihood(ts[:, feat], *x)
+                        return self.compute_neg_log_likelihood(
+                            ts[:, feat], mean_0, var_0, *x
+                        )
 
                     optimal = minimize(
                         func_to_minimize,
                         x0=ts_initial_guesses,
                         bounds=bounds,
                     )
-                    return optimal.x
+
+                    return np.concatenate(np.array([mean_0, var_0]), optimal.x)
 
                 # let's run the code for each feature in parallel
                 ts_results = Parallel(n_jobs=-1, verbose=verbose)(
@@ -373,7 +380,7 @@ class GASTStudent(GASNormalizer):
         return neg_log_likelihood / ts_length
 
     def normalize(
-        self, dataset: list[np.ndarray], normalizer_params: list[dict]
+        self, dataset: list[np.ndarray], normalizer_params: list[np.ndarray]
     ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
         """
         This method normalizes a dataset (list) of time series. It needs also time

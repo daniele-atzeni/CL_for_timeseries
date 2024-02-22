@@ -125,6 +125,7 @@ def run_gas_experiment(
         normalizer_name,
         normalizer_params,
         data_manager.get_dataset_for_normalizer(),
+        data_manager.context_length,
         normalizer_inital_guesses,
         normalizer_bounds,
         normalizer_folders,

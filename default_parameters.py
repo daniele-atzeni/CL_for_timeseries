@@ -33,11 +33,14 @@ gas_complex_gauss_params = {"eps": 1e-9, "regularization": "full"}
 
 # student t
 gas_t_stud_initial_guesses = np.array(
-    [0, 1, 0 + small_val, 0 + small_val, 1, 1, 0, 0, 3], dtype=np.float32
+    [0 + small_val, 0 + small_val, 1, 1, 0, 0, 3],
+    dtype=np.float32,
 )
+# [0, 1, 0 + small_val, 0 + small_val, 1, 1, 0, 0, 3], dtype=np.float32
+
 gas_t_stud_bounds = (
-    (None, None),
-    (0, None),
+    # (None, None),
+    # (0, None),
     (0 + small_val, 1 - small_val),
     (0 + small_val, 1 - small_val),
     (0 + small_val, 1 - small_val),
