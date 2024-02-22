@@ -155,14 +155,7 @@ def run_gas_experiment(
             mean_layer_folders,
         )
     elif mean_layer_name == "gas":
-        mean_layer = experiment_mean_layer_gas(
-            data_manager.get_dataset_for_linear_mean_layer(
-                n_training_samples, n_test_samples
-            ),
-            normalizer,
-            mean_layer_params,
-            mean_layer_folders,
-        )
+        mean_layer = normalizer
     else:
         raise ValueError(f"Unknown mean layer method: {mean_layer_name}")
 

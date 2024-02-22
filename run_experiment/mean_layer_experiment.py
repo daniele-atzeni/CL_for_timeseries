@@ -43,22 +43,3 @@ def experiment_mean_layer_linear(
     print("Done.")
 
     return mean_layer
-
-
-def experiment_mean_layer_gas(
-    dataset: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
-    normalizer: GASNormalizer,
-    mean_layer_params: dict,
-    folders: dict,
-) -> GASNormalizer:
-    (
-        mean_layer_train_x,
-        mean_layer_train_y,
-        mean_layer_test_x,
-        mean_layer_test_y,
-    ) = dataset
-
-    # REGRESSOR INITIALIZATION
-    mean_layer = normalizer
-
-    return mean_layer
