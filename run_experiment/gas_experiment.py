@@ -7,10 +7,7 @@ from data_manager import GluonTSDataManager
 from utils import init_folder
 
 from run_experiment.normalizer_experiment import experiment_normalizer
-from run_experiment.mean_layer_experiment import (
-    experiment_mean_layer_linear,
-    experiment_mean_layer_gas,
-)
+from run_experiment.mean_layer_experiment import experiment_mean_layer_linear
 from run_experiment.dl_model_experiment import experiment_gluonts, experiment_torch
 
 
