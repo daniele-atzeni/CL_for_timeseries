@@ -79,8 +79,8 @@ class GASNormalizer:
 
             def ts_inner_func(ts):
                 ts_initial_guesses = initial_guesses.copy()
-                mean_0 = np.mean(ts[:context_length], axis=0)
-                var_0 = np.var(ts[:context_length], axis=0)
+                mean_0 = np.mean(ts[:], axis=0)
+                var_0 = np.var(ts[:], axis=0)
 
                 def func_to_minimize(x):
                     # we must first unpack the input
@@ -106,8 +106,8 @@ class GASNormalizer:
                 def feat_inner_func(feat):
                     # update initial guesses based on the time series
                     ts_initial_guesses = initial_guesses.copy()
-                    mean_0 = np.mean(ts[:context_length, feat], axis=0)
-                    var_0 = np.var(ts[:context_length, feat], axis=0)
+                    mean_0 = np.mean(ts[:, feat], axis=0)
+                    var_0 = np.var(ts[:, feat], axis=0)
 
                     # we define the function to minimize
                     def func_to_minimize(x):

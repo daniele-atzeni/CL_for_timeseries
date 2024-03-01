@@ -186,6 +186,8 @@ class TransformerNetwork(mx.gluon.HybridBlock):
                 axis=1, begin=-self.context_length, end=None
             ),
         )
+        # set scale to 1
+
         embedded_cat = self.embedder(feat_static_cat)
 
         # in addition to embedding features, use the log scale as it can help
@@ -269,11 +271,11 @@ class TransformerTrainingNetwork(TransformerNetwork):
         means = past_feat_dynamic_real.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
-        )  # (batch, context_length, 1)
+        )  # (batch, history_length, 1)
         vars = past_feat_dynamic_real.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
-        )  # (batch, context_length, 1)
+        )  # (batch, history_length, 1)
 
         # normalize past_target
         norm_past_target = (past_target - F.squeeze(means)) / (
@@ -296,8 +298,34 @@ class TransformerTrainingNetwork(TransformerNetwork):
             past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
         )
 
+        """
+        import matplotlib.pyplot as plt
+
+        for i in range(32):
+            past_target_pl = past_target.asnumpy()[i]
+            future_target_pl = future_target.asnumpy()[i]
+            pred_means_pl = pred_means.asnumpy()[i]
+            pred_vars_pl = pred_vars.asnumpy()[i]
+            past_means_pl = means.asnumpy()[i].squeeze()
+            past_vars_pl = vars.asnumpy()[0].squeeze()
+            plt.plot(np.concatenate([past_target_pl, future_target_pl]))
+            plt.plot(range(self.history_length), past_means_pl)
+            plt.plot(
+                range(
+                    self.history_length, self.history_length + self.prediction_length
+                ),
+                pred_means_pl,
+            )
+            plt.savefig(f"prova_{i}.png")
+            plt.close()
+            plt.plot(np.concatenate([past_vars_pl, pred_vars_pl]))
+            plt.savefig(f"prova1_{i}.png")
+            plt.close()
+        raise ValueError
+        """
+
         # normalize future_target for teacher forcing
-        norm_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
+        norm_future_target = future_target - pred_means  # / (pred_vars.sqrt() + 1e-8)
 
         """Now the original code"""
         # create the inputs for the encoder
@@ -305,10 +333,10 @@ class TransformerTrainingNetwork(TransformerNetwork):
             F=F,
             feat_static_cat=feat_static_cat,
             past_time_feat=past_time_feat,
-            past_target=norm_past_target,
+            past_target=norm_past_target,  ###
             past_observed_values=past_observed_values,
             future_time_feat=future_time_feat,
-            future_target=norm_future_target,
+            future_target=norm_future_target,  ####
         )
 
         enc_input = F.slice_axis(inputs, axis=1, begin=0, end=self.context_length)
@@ -333,6 +361,7 @@ class TransformerTrainingNetwork(TransformerNetwork):
         new_distr_args = (new_means, new_vars, distr_args[2])
 
         # now again the original code
+        # set scale to 1
         distr = self.distr_output.distribution(new_distr_args, scale=scale)
         loss = distr.loss(future_target)
 

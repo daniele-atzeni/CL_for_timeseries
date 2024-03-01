@@ -47,7 +47,7 @@ gas_t_stud_bounds = (
     (0 + small_val, 1 - small_val),
     (None, None),
     (0 + small_val, None),
-    (2 + small_val, 50),
+    (99, 100),
 )
 gas_t_stud_params = {
     "mean_strength": 0.5,
