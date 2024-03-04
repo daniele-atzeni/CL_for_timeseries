@@ -196,6 +196,18 @@ def initialize_estimator(
                         **estimator_parameters,
                     )
                 else:
+                    from point_distributions import LaplaceFixedVarianceOutput
+
+                    estimator = Transformer_gluonts_gas_means_point(
+                        mean_layer,
+                        freq=frequency,
+                        distr_output=LaplaceFixedVarianceOutput(),
+                        prediction_length=prediction_length,
+                        context_length=context_length,
+                        trainer=trainer,
+                        **estimator_parameters,
+                    )
+                    """
                     estimator = Transformer_gluonts_gas_means_point(
                         mean_layer,
                         freq=frequency,
@@ -205,6 +217,7 @@ def initialize_estimator(
                         trainer=trainer,
                         **estimator_parameters,
                     )
+                    """
             else:
                 estimator = Transformer_gluonts_linear_means(
                     mean_layer,
@@ -413,9 +426,9 @@ def experiment_gluonts(
     else:
         evaluator = MultivariateEvaluator(**evaluator_parameters)
 
-    #agg_metrics, item_metrics = evaluator(tss, forecasts)  # type: ignore # we are sure that tss is a list of DataFrame in multivariate case
+    # agg_metrics, item_metrics = evaluator(tss, forecasts)  # type: ignore # we are sure that tss is a list of DataFrame in multivariate case
     # print(json.dumps(agg_metrics, indent=4))
-    #print(item_metrics.head())
+    # print(item_metrics.head())
 
     # SAVE EVERYTHING
     # save initialization parameters
@@ -425,9 +438,9 @@ def experiment_gluonts(
     with open(dl_model_filename, "wb") as f:
         pickle.dump(predictor, f)
     # save agg_metrics as json and item_metrics as csv
-    #with open(os.path.join(results_folder, "agg_metrics.json"), "w") as f:
+    # with open(os.path.join(results_folder, "agg_metrics.json"), "w") as f:
     #    json.dump(agg_metrics, f)
-    #item_metrics.to_csv(os.path.join(results_folder, "item_metrics.csv"))
+    # item_metrics.to_csv(os.path.join(results_folder, "item_metrics.csv"))
 
 
 def experiment_torch(

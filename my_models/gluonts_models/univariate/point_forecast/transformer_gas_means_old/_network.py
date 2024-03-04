@@ -67,7 +67,8 @@ class TransformerNetwork(mx.gluon.HybridBlock):
         self.target_shape = distr_output.event_shape
 
         with self.name_scope():
-            self.proj_dist_args = distr_output.get_args_proj()
+            # self.proj_dist_args = distr_output.get_args_proj()
+            self.proj_dist_args = mx.gluon.nn.Dense(units=self.prediction_length)
             self.encoder = encoder
             self.decoder = decoder
             self.embedder = FeatureEmbedder(
@@ -186,8 +187,6 @@ class TransformerNetwork(mx.gluon.HybridBlock):
                 axis=1, begin=-self.context_length, end=None
             ),
         )
-        # set scale to 1
-
         embedded_cat = self.embedder(feat_static_cat)
 
         # in addition to embedding features, use the log scale as it can help
@@ -277,18 +276,13 @@ class TransformerTrainingNetwork(TransformerNetwork):
             end=(None, None, 2),
         )  # (batch, history_length, 1)
 
-        # normalize past_target
-        norm_past_target = (past_target - F.squeeze(means)) / (
-            F.sqrt(F.squeeze(vars)) + 1e-8
-        )
-
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
         means_for_mean_l = F.slice_axis(
             means, axis=1, begin=-self.context_length, end=None
         )
         vars_for_mean_l = F.slice_axis(
-            vars, axis=1, begin=-self.context_length, end=None
+            means, axis=1, begin=-self.context_length, end=None
         )
         past_target_for_mean_l = F.slice_axis(
             past_target, axis=1, begin=-self.context_length, end=None
@@ -298,9 +292,18 @@ class TransformerTrainingNetwork(TransformerNetwork):
             past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
         )
 
+        # normalize past_target
+        norm_past_target = (past_target - F.squeeze(means)) / (
+            F.sqrt(F.squeeze(vars)) + 1e-8
+        )
+
+        # save the non normalized version of future target
+        if F.__name__ == "mxnet.ndarray":
+            future_target_non_normalized = future_target.copy()
+        else:
+            future_target_non_normalized = future_target
         # normalize future_target for teacher forcing
-        norm_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
-        # norm_future_target = (future_target - pred_means)
+        future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
 
         """Now the original code"""
         # create the inputs for the encoder
@@ -308,10 +311,10 @@ class TransformerTrainingNetwork(TransformerNetwork):
             F=F,
             feat_static_cat=feat_static_cat,
             past_time_feat=past_time_feat,
-            past_target=norm_past_target,  ###
+            past_target=norm_past_target,
             past_observed_values=past_observed_values,
             future_time_feat=future_time_feat,
-            future_target=norm_future_target,  ####
+            future_target=future_target,
         )
 
         enc_input = F.slice_axis(inputs, axis=1, begin=0, end=self.context_length)
@@ -328,27 +331,16 @@ class TransformerTrainingNetwork(TransformerNetwork):
         )
 
         # compute loss
-        distr_args = self.proj_dist_args(dec_output)
+        # remember proj_distr_args is a dense with output units = prediction_lentgh
+        pred = self.proj_dist_args(dec_output)
 
-        # finally recombine the output
-        new_means = pred_vars.sqrt() * distr_args[0] + pred_means
-        new_vars = distr_args[1]  # pred_vars.sqrt() * distr_args[1] const var
-        new_distr_args = (new_means, new_vars)#, distr_args[2])
+        # combine deep network prediction with gas
+        pred = pred_vars.sqrt() * pred + pred_means
 
-        # now again the original code
-        # set scale to 1
-        distr = self.distr_output.distribution(new_distr_args, scale=scale)
-        loss = distr.loss(future_target)
+        # compute the loss
+        loss = F.abs((pred - future_target_non_normalized)).mean(axis=-1)
 
-        # mask loss
-        weighted_loss = weighted_average(
-            F=F,
-            x=loss,
-            weights=future_observed_values,
-            axis=1,
-        )
-
-        return weighted_loss.mean()
+        return loss
 
 
 class TransformerPredictionNetwork(TransformerNetwork):
@@ -397,8 +389,6 @@ class TransformerPredictionNetwork(TransformerNetwork):
             a tensor containing sampled paths.
             Shape: (batch_size, num_sample_paths, prediction_length).
         """
-
-        # original code
         # blows-up the dimension of each tensor to batch_size *
         # self.num_parallel_samples for increasing parallelism
         repeated_past_target = past_target.repeat(
@@ -455,34 +445,25 @@ class TransformerPredictionNetwork(TransformerNetwork):
 
             dec_output = self.decoder(dec_input, repeated_enc_out, None, False)
 
-            distr_args = self.proj_dist_args(dec_output)
+            pred = self.proj_dist_args(
+                dec_output.repeat(self.prediction_length, axis=1)
+            )  # batch*num_samples x pred_length
+            pred_k = pred.slice_axis(axis=1, begin=k, end=k + 1).expand_dims(axis=1)
 
-            """My code here"""
-            # I'd like to do distr_args['mu'] = distr_args['mu'] + pred_means but it doesn't work
-            pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
-            pred_vars_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
-            new_mu = pred_vars_k.sqrt() * distr_args[0] + pred_means_k
-            new_var = distr_args[1]  # pred_vars_k.sqrt() * distr_args[1] const
-            new_distr_args = (new_mu, new_var)#, distr_args[2])
-            # I hope that in distr_args[0] there is the mean
-            """ end """
-
-            # compute likelihood of target given the predicted parameters
-            distr = self.distr_output.distribution(new_distr_args, scale=repeated_scale)
-
-            # (batch_size * num_samples, 1, *target_shape)
-            pred_samples = distr.sample()
-            ar_samples = (pred_samples - pred_means_k) / pred_vars_k.sqrt()
+            new_samples = pred_k.repeat()
 
             # (batch_size * num_samples, seq_len, *target_shape)
-            repeated_past_target = F.concat(repeated_past_target, ar_samples, dim=1)
-            future_samples.append(pred_samples)
+            repeated_past_target = F.concat(repeated_past_target, new_samples, dim=1)
+            future_samples.append(new_samples)
 
         # reset cache of the decoder
         self.decoder.cache_reset()
 
         # (batch_size * num_samples, prediction_length, *target_shape)
         samples = F.concat(*future_samples, dim=1)
+
+        # de-normalize samples
+        samples = F.sqrt(repeated_pred_vars) * samples + repeated_pred_means
 
         # (batch_size, num_samples, *target_shape, prediction_length)
         return samples.reshape(
@@ -523,16 +504,11 @@ class TransformerPredictionNetwork(TransformerNetwork):
         means = past_feat_dynamic_real.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
-        )  # (batch, context_length, 1)
+        )  # (batch, history_length, 1)
         vars = past_feat_dynamic_real.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
-        )  # (batch, context_length, 1)
-
-        # normalize past_target
-        norm_past_target = (past_target - F.squeeze(means)) / (
-            F.sqrt(F.squeeze(vars)) + 1e-8
-        )
+        )  # (batch, history_length, 1)
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
@@ -540,7 +516,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
             means, axis=1, begin=-self.context_length, end=None
         )
         vars_for_mean_l = F.slice_axis(
-            vars, axis=1, begin=-self.context_length, end=None
+            means, axis=1, begin=-self.context_length, end=None
         )
         past_target_for_mean_l = F.slice_axis(
             past_target, axis=1, begin=-self.context_length, end=None
@@ -548,6 +524,11 @@ class TransformerPredictionNetwork(TransformerNetwork):
         # compute mean layer prediction
         pred_means, pred_vars = self.mean_layer(
             past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+        )
+
+        # normalize past_target
+        norm_past_target = (past_target - F.squeeze(means)) / (
+            F.sqrt(F.squeeze(vars)) + 1e-8
         )
 
         # create the inputs for the encoder
@@ -566,7 +547,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
 
         return self.sampling_decoder(
             F=F,
-            past_target=past_target,
+            past_target=norm_past_target,
             time_feat=future_time_feat,
             static_feat=static_feat,
             scale=scale,

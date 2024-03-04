@@ -298,6 +298,9 @@ class TransformerTrainingNetwork(TransformerNetwork):
             past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
         )
 
+        # normalize future_target for teacher forcing
+        norm_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
+        # norm_future_target = (future_target - pred_means)
         """
         import matplotlib.pyplot as plt
 
@@ -307,7 +310,9 @@ class TransformerTrainingNetwork(TransformerNetwork):
             pred_means_pl = pred_means.asnumpy()[i]
             pred_vars_pl = pred_vars.asnumpy()[i]
             past_means_pl = means.asnumpy()[i].squeeze()
-            past_vars_pl = vars.asnumpy()[0].squeeze()
+            past_vars_pl = vars.asnumpy()[i].squeeze()
+            norm_past_target_pl = norm_past_target.asnumpy()[i]
+            norm_future_target_pl = norm_future_target.asnumpy()[i]
             plt.plot(np.concatenate([past_target_pl, future_target_pl]))
             plt.plot(range(self.history_length), past_means_pl)
             plt.plot(
@@ -316,16 +321,17 @@ class TransformerTrainingNetwork(TransformerNetwork):
                 ),
                 pred_means_pl,
             )
-            plt.savefig(f"prova_{i}.png")
+            plt.savefig(f"prova_imgs/prova_{i}.png")
             plt.close()
             plt.plot(np.concatenate([past_vars_pl, pred_vars_pl]))
-            plt.savefig(f"prova1_{i}.png")
+            plt.savefig(f"prova_imgs/prova1_{i}.png")
+            plt.close()
+
+            plt.plot(np.concatenate([norm_past_target_pl, norm_future_target_pl]))
+            plt.savefig(f"prova_imgs/prova2_{i}.png")
             plt.close()
         raise ValueError
         """
-
-        # normalize future_target for teacher forcing
-        norm_future_target = future_target - pred_means  # / (pred_vars.sqrt() + 1e-8)
 
         """Now the original code"""
         # create the inputs for the encoder

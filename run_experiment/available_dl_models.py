@@ -60,7 +60,7 @@ available_dl_models = {
     ): Transformer_gluonts_gas_point,
     # ("transformer", "gluonts", "linear", True, True): Transformer_gluonts_multivariate_linear,
     ("deepar", "gluonts", "gas", False, True): Deepar_gluonts_gas,
-    #("deepar", "gluonts", "linear", False, True): Deepar_gluonts_linear,
-    #("deepar", "gluonts", "gas", True, True): Deepar_gluonts_multivariate_gas,
-    #("deepar", "gluonts", "linear", True, True): Deepar_gluonts_multivariate_linear,
+    # ("deepar", "gluonts", "linear", False, True): Deepar_gluonts_linear,
+    # ("deepar", "gluonts", "gas", True, True): Deepar_gluonts_multivariate_gas,
+    # ("deepar", "gluonts", "linear", True, True): Deepar_gluonts_multivariate_linear,
 }
