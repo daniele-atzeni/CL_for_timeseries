@@ -300,38 +300,6 @@ class TransformerTrainingNetwork(TransformerNetwork):
 
         # normalize future_target for teacher forcing
         norm_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
-        # norm_future_target = (future_target - pred_means)
-        """
-        import matplotlib.pyplot as plt
-
-        for i in range(32):
-            past_target_pl = past_target.asnumpy()[i]
-            future_target_pl = future_target.asnumpy()[i]
-            pred_means_pl = pred_means.asnumpy()[i]
-            pred_vars_pl = pred_vars.asnumpy()[i]
-            past_means_pl = means.asnumpy()[i].squeeze()
-            past_vars_pl = vars.asnumpy()[i].squeeze()
-            norm_past_target_pl = norm_past_target.asnumpy()[i]
-            norm_future_target_pl = norm_future_target.asnumpy()[i]
-            plt.plot(np.concatenate([past_target_pl, future_target_pl]))
-            plt.plot(range(self.history_length), past_means_pl)
-            plt.plot(
-                range(
-                    self.history_length, self.history_length + self.prediction_length
-                ),
-                pred_means_pl,
-            )
-            plt.savefig(f"prova_imgs/prova_{i}.png")
-            plt.close()
-            plt.plot(np.concatenate([past_vars_pl, pred_vars_pl]))
-            plt.savefig(f"prova_imgs/prova1_{i}.png")
-            plt.close()
-
-            plt.plot(np.concatenate([norm_past_target_pl, norm_future_target_pl]))
-            plt.savefig(f"prova_imgs/prova2_{i}.png")
-            plt.close()
-        raise ValueError
-        """
 
         """Now the original code"""
         # create the inputs for the encoder
@@ -363,8 +331,8 @@ class TransformerTrainingNetwork(TransformerNetwork):
 
         # finally recombine the output
         new_means = pred_vars.sqrt() * distr_args[0] + pred_means
-        new_vars = pred_vars.sqrt() * distr_args[1]
-        new_distr_args = (new_means, new_vars, distr_args[2])
+        new_sigma = pred_vars.sqrt() * distr_args[1]
+        new_distr_args = (new_means, new_sigma, distr_args[2])
 
         # now again the original code
         # set scale to 1
@@ -493,8 +461,8 @@ class TransformerPredictionNetwork(TransformerNetwork):
             pred_means_k = repeated_pred_means.slice_axis(axis=1, begin=k, end=k + 1)
             pred_vars_k = repeated_pred_vars.slice_axis(axis=1, begin=k, end=k + 1)
             new_mu = pred_vars_k.sqrt() * distr_args[0] + pred_means_k
-            new_var = pred_vars_k.sqrt() * distr_args[1]
-            new_distr_args = (new_mu, new_var, distr_args[2])
+            new_sigma = pred_vars_k.sqrt() * distr_args[1]
+            new_distr_args = (new_mu, new_sigma, distr_args[2])
             # I hope that in distr_args[0] there is the mean
             """ end """
 
@@ -597,7 +565,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
 
         return self.sampling_decoder(
             F=F,
-            past_target=past_target,
+            past_target=norm_past_target,
             time_feat=future_time_feat,
             static_feat=static_feat,
             scale=scale,

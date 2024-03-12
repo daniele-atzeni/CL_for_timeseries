@@ -180,3 +180,5 @@ nohup.out
 nohup_out/
 figures
 prova_imgs
+
+.DS_Store
