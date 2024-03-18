@@ -153,7 +153,7 @@ class TransformerEstimator(GluonEstimator):
         scaling: bool = False,  ###
         lags_seq: Optional[List[int]] = None,
         time_features: Optional[List[TimeFeature]] = None,
-        # use_feat_dynamic_real: bool = True, ### we won't use this because we always want to use feat_dynamic_real
+        use_feat_dynamic_real: bool = False,
         use_feat_static_cat: bool = False,
         num_parallel_samples: int = 100,
         train_sampler: Optional[InstanceSampler] = None,
@@ -188,7 +188,7 @@ class TransformerEstimator(GluonEstimator):
         )
         self.distr_output = distr_output
         self.dropout_rate = dropout_rate
-        # self.use_feat_dynamic_real = use_feat_dynamic_real ## my code here
+        self.use_feat_dynamic_real = use_feat_dynamic_real ## my code here
         self.use_feat_static_cat = use_feat_static_cat
         self.cardinality = cardinality if use_feat_static_cat else [1]
         self.embedding_dimension = embedding_dimension
@@ -236,9 +236,10 @@ class TransformerEstimator(GluonEstimator):
     def create_transformation(self) -> Transformation:
         remove_field_names = [
             FieldName.FEAT_DYNAMIC_CAT,
+            FieldName.FEAT_STATIC_REAL,
         ]
-        # if not self.use_feat_dynamic_real: ## my code here, we don't want this
-        #    remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
+        if not self.use_feat_dynamic_real: ## my code here, we don't want this
+            remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
 
         return Chain(
             [RemoveFields(field_names=remove_field_names)]
@@ -273,7 +274,12 @@ class TransformerEstimator(GluonEstimator):
                 ),
                 VstackFeatures(
                     output_field=FieldName.FEAT_TIME,
-                    input_fields=[FieldName.FEAT_TIME, FieldName.FEAT_AGE],
+                    input_fields=[FieldName.FEAT_TIME, FieldName.FEAT_AGE]
+                    + (
+                        [FieldName.FEAT_DYNAMIC_REAL]
+                        if self.use_feat_dynamic_real
+                        else []
+                    ),
                 ),
             ]
         )
@@ -296,9 +302,9 @@ class TransformerEstimator(GluonEstimator):
             past_length=self.history_length,
             future_length=self.prediction_length,
             time_series_fields=[
-                FieldName.FEAT_DYNAMIC_REAL,
                 FieldName.FEAT_TIME,
                 FieldName.OBSERVED_VALUES,
+                "means_vars",  #######
             ],
         )
 

@@ -244,8 +244,8 @@ class TransformerTrainingNetwork(TransformerNetwork):
         future_time_feat: Tensor,
         future_target: Tensor,
         future_observed_values: Tensor,
-        past_feat_dynamic_real: Tensor,  ###
-        feat_static_real: Tensor,  ###
+        past_means_vars: Tensor,  ###
+        gas_params: Tensor,  ###
     ) -> Tensor:
         """
         Computes the loss for training Transformer, all inputs tensors
@@ -268,11 +268,11 @@ class TransformerTrainingNetwork(TransformerNetwork):
         Loss with shape (batch_size, context + prediction_length, 1)
         """
         # retrieve the data
-        means = past_feat_dynamic_real.slice(
+        means = past_means_vars.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
         )  # (batch, history_length, 1)
-        vars = past_feat_dynamic_real.slice(
+        vars = past_means_vars.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
         )  # (batch, history_length, 1)
@@ -295,7 +295,7 @@ class TransformerTrainingNetwork(TransformerNetwork):
         )
         # compute mean layer prediction
         pred_means, pred_vars = self.mean_layer(
-            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, gas_params
         )
 
         # normalize future_target for teacher forcing
@@ -500,8 +500,8 @@ class TransformerPredictionNetwork(TransformerNetwork):
         past_target: Tensor,
         past_observed_values: Tensor,
         future_time_feat: Tensor,
-        past_feat_dynamic_real: Tensor,  ###
-        feat_static_real: Tensor,  ###
+        past_means_vars: Tensor,  ###
+        gas_params: Tensor,  ###
     ) -> Tensor:
         """
         Predicts samples, all tensors should have NTC layout.
@@ -519,11 +519,11 @@ class TransformerPredictionNetwork(TransformerNetwork):
         -------
         """
         # retrieve the data
-        means = past_feat_dynamic_real.slice(
+        means = past_means_vars.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
         )  # (batch, context_length, 1)
-        vars = past_feat_dynamic_real.slice(
+        vars = past_means_vars.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
         )  # (batch, context_length, 1)
@@ -546,7 +546,7 @@ class TransformerPredictionNetwork(TransformerNetwork):
         )
         # compute mean layer prediction
         pred_means, pred_vars = self.mean_layer(
-            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, gas_params
         )
 
         # create the inputs for the encoder

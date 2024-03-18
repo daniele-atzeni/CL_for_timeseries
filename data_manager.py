@@ -65,12 +65,14 @@ class GluonTSDataManager:
             # remove all the features we won't use
             # we need only the target, because we will use other fields for
             # means and vars
-            train_dataset = []
-            for el in gluonts_dataset.train:
-                train_dataset.append({"target": el["target"], "start": el["start"]})
-            test_dataset = []
-            for el in gluonts_dataset.test:
-                test_dataset.append({"target": el["target"], "start": el["start"]})
+            #train_dataset = []
+            #for el in gluonts_dataset.train:
+            #    train_dataset.append({"target": el["target"], "start": el["start"]})
+            #test_dataset = []
+            #for el in gluonts_dataset.test:
+            #    test_dataset.append({"target": el["target"], "start": el["start"]})
+            train_dataset = list(gluonts_dataset.train)
+            test_dataset = list(gluonts_dataset.test)
 
             # train_dataset = train_dataset[:2]  # for debugging
             # test_dataset = test_dataset[:2]  # for debugging
@@ -268,8 +270,8 @@ class GluonTSDataManager:
                     {
                         "target": data_entry["target"],
                         "start": data_entry["start"],
-                        "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": (
+                        "means_vars": np.concatenate((mean, var), axis=1).T,
+                        "gas_params": (
                             np.concatenate(train_param)
                             if isinstance(train_param, list)
                             else train_param
@@ -289,8 +291,8 @@ class GluonTSDataManager:
                     {
                         "target": data_entry["target"],
                         "start": data_entry["start"],
-                        "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": (
+                        "means_vars": np.concatenate((mean, var), axis=1).T,
+                        "gas_params": (
                             np.concatenate(train_param)
                             if isinstance(train_param, list)
                             else train_param
@@ -311,8 +313,8 @@ class GluonTSDataManager:
                     {
                         "target": data_entry["target"],
                         "start": data_entry["start"],
-                        "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": (
+                        "means_vars": np.concatenate((mean, var), axis=1).T,
+                        "gas_params": (
                             np.concatenate(train_param)
                             if isinstance(train_param, list)
                             else train_param
@@ -333,8 +335,8 @@ class GluonTSDataManager:
                     {
                         "target": data_entry["target"],
                         "start": data_entry["start"],
-                        "feat_dynamic_real": np.concatenate((mean, var), axis=1).T,
-                        "feat_static_real": (
+                        "means_vars": np.concatenate((mean, var), axis=1).T,
+                        "gas_params": (
                             np.concatenate(train_param)
                             if isinstance(train_param, list)
                             else train_param
