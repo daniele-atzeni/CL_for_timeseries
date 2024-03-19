@@ -8,8 +8,8 @@ from gluonts.dataset.common import ListDataset
 from gluonts.dataset.multivariate_grouper import MultivariateGrouper
 from utils import get_dataset_from_file
 
-from torch import from_numpy
-from torch.utils.data import TensorDataset
+# from torch import from_numpy
+# from torch.utils.data import TensorDataset
 
 from utils import get_dataset_from_file
 
@@ -22,11 +22,20 @@ NAME_TO_CONTEXT_AND_PRED = {
     "weather_dataset": (9, 30),
     "sunspot_dataset_without_missing_values": (9, 30),
 }
+NAME_TO_CONTEXT_AND_PRED_GLUONTS = { # (context_length, prediction_length)
+    "nn5_weekly": (65, 8),
+    "solar_10_minutes": (50, 1008),
+    "weather": (9, 30),
+    "sunspot_without_missing": (9, 30),
+    "hospital": (15, 12),
+    'rideshare_without_missing': (210, 168),
+    'fred_md': (15, 12)
+}
 
 
 class GluonTSDataManager:
     def __init__(
-        self, name: str, multivariate: bool, root_folder: str | None = None
+        self, name: str, multivariate: bool, root_folder: str | None = None, standardize: bool = False,
     ) -> None:
         """
         Initialize the data manager. The stored train and test time series are
@@ -39,6 +48,9 @@ class GluonTSDataManager:
 
         self.name = name
         self.multivariate = multivariate
+        self.standardize = standardize
+        self.scale_train_means = None
+        self.scale_train_stds = None
         self.init_main_dataset(root_folder)
         # data from normalizer
         self.train_means = None
@@ -46,6 +58,7 @@ class GluonTSDataManager:
         self.test_means = None
         self.test_vars = None
         self.train_params = None
+
 
     def init_main_dataset(self, root_folder: str | None) -> None:
         """
@@ -78,8 +91,11 @@ class GluonTSDataManager:
             # test_dataset = test_dataset[:2]  # for debugging
 
             assert isinstance(gluonts_dataset.metadata.prediction_length, int)
-            self.prediction_length = gluonts_dataset.metadata.prediction_length
-            self.context_length = 2 * self.prediction_length
+            if self.name in NAME_TO_CONTEXT_AND_PRED_GLUONTS.keys():
+                self.context_length, self.prediction_length = NAME_TO_CONTEXT_AND_PRED_GLUONTS[self.name]
+            else:
+                self.prediction_length = gluonts_dataset.metadata.prediction_length
+                self.context_length = 2 * self.prediction_length
             self.freq = gluonts_dataset.metadata.freq
             self.seasonality = None
         else:
@@ -87,17 +103,23 @@ class GluonTSDataManager:
                 self.name
             ]
             train_dataset, test_dataset, freq, seasonality = get_dataset_from_file(
-                os.path.join(root_folder, self.name),
-                external_forecast_horizon,
-                context_length,
+                f'{root_folder}/{self.name}', external_forecast_horizon, context_length
             )
             self.prediction_length = external_forecast_horizon
             self.context_length = context_length
             self.freq = freq
             self.seasonality = seasonality
 
+        # train_dataset = self._difference(train_dataset)
+        # test_dataset = self._difference(test_dataset)
+
         train_dataset = self._scale_dataset(train_dataset)
         test_dataset = self._scale_dataset(test_dataset)
+        
+        if self.standardize:
+            train_dataset, test_dataset = self._standardize_datasets(train_dataset, test_dataset)
+            
+
 
         self.n_features = len(list(train_dataset)) if self.multivariate else 1
         assert test_dataset is not None
@@ -116,6 +138,47 @@ class GluonTSDataManager:
             self.train_dataset = train_dataset
             self.test_dataset = test_dataset
 
+    def _standardize_datasets(self, train: list[DataEntry], test: list[DataEntry]) -> tuple[list[DataEntry], list[DataEntry]]:
+        new_train = []
+        new_test = []
+        train_means = []
+        train_stds = []
+        for el in train:
+            mean = np.mean(el["target"])
+            std = np.std(el["target"])
+            el["target"] = (el["target"] - mean) / std
+            train_means.append(mean)
+            train_stds.append(std)
+            new_train.append(el)
+        self.scale_train_means = train_means
+        self.scale_train_stds = train_stds
+        for el, mean, std in zip(test, train_means, train_stds):
+            el["target"] = (el["target"] - mean) / std
+            new_test.append(el)
+
+        return new_train, new_test
+    
+    def unstandardize_data(self, data: list[any]) -> list[DataEntry]:
+        new_data = []
+        if type(data[0]) == dict:
+            for el, mean, std in zip(data, self.scale_train_means, self.scale_train_stds):
+                el["target"] = (el["target"] * std) + mean
+                new_data.append(el)
+        else:
+            for el, mean, std in zip(data, self.scale_train_means, self.scale_train_stds):
+                el = (el * std) + mean
+                new_data.append(el)
+        return new_data
+    
+    def _difference(self, dataset: list[DataEntry]) -> list[DataEntry]:
+        differenced_dataset = []
+        for data in dataset:
+            target = data['target']
+            differenced_target = target[1:] - target[:-1]
+            differenced_data = {**data, 'target': differenced_target}
+            differenced_dataset.append(differenced_data)
+        return differenced_dataset
+    
     def _scale_dataset(self, dataset: list[DataEntry]) -> list[DataEntry]:
         """
         This method shrinks the dataset by dividing all the time series by the
@@ -128,6 +191,8 @@ class GluonTSDataManager:
         new_dataset = []
         for el in dataset:
             scale_val = np.mean(el["target"][: self.context_length])
+            if scale_val == 0:
+                scale_val = np.finfo(float).eps
             el["target"] = el["target"] / scale_val
             new_dataset.append(el)
         return new_dataset
@@ -404,40 +469,40 @@ class GluonTSDataManager:
 
         return dl_layer_x, dl_means_x, dl_vars_x, dl_layer_y
 
-    def get_torch_dataset_for_dl_layer(
-        self, n_training_samples: int, n_test_samples: int, seed: int = 42
-    ) -> tuple[TensorDataset, TensorDataset]:
-        """
-        This method creates the dataset for the Torch DL model. Data for the DL
-        model are of shape (n_samples, context_length, n_features) for x and
-        (n_samples, prediction_length, n_features) for y.
-        The model needs as x windows of:
-        - the dataset
-        - the means
-        - the vars
-        The model needs windows of the dataset as y.
-        Dataset normalization takes place inside of the forward of the models.
-        """
-        train_x, train_mean, train_var, train_y = self._split_data_for_dl_layer(
-            n_training_samples, "train", seed
-        )
-        test_x, test_mean, test_var, test_y = self._split_data_for_dl_layer(
-            n_test_samples, "test", seed
-        )
+    # def get_torch_dataset_for_dl_layer(
+    #     self, n_training_samples: int, n_test_samples: int, seed: int = 42
+    # ) -> tuple[TensorDataset, TensorDataset]:
+    #     """
+    #     This method creates the dataset for the Torch DL model. Data for the DL
+    #     model are of shape (n_samples, context_length, n_features) for x and
+    #     (n_samples, prediction_length, n_features) for y.
+    #     The model needs as x windows of:
+    #     - the dataset
+    #     - the means
+    #     - the vars
+    #     The model needs windows of the dataset as y.
+    #     Dataset normalization takes place inside of the forward of the models.
+    #     """
+    #     train_x, train_mean, train_var, train_y = self._split_data_for_dl_layer(
+    #         n_training_samples, "train", seed
+    #     )
+    #     test_x, test_mean, test_var, test_y = self._split_data_for_dl_layer(
+    #         n_test_samples, "test", seed
+    #     )
 
-        train_dataset = TensorDataset(
-            from_numpy(train_x),
-            from_numpy(train_mean),
-            from_numpy(train_var),
-            from_numpy(train_y),
-        )
-        test_dataset = TensorDataset(
-            from_numpy(test_x),
-            from_numpy(test_mean),
-            from_numpy(test_var),
-            from_numpy(test_y),
-        )
-        return train_dataset, test_dataset
+    #     train_dataset = TensorDataset(
+    #         from_numpy(train_x),
+    #         from_numpy(train_mean),
+    #         from_numpy(train_var),
+    #         from_numpy(train_y),
+    #     )
+    #     test_dataset = TensorDataset(
+    #         from_numpy(test_x),
+    #         from_numpy(test_mean),
+    #         from_numpy(test_var),
+    #         from_numpy(test_y),
+    #     )
+    #     return train_dataset, test_dataset
 
 
 class SyntheticDatasetGetter(GluonTSDataManager):

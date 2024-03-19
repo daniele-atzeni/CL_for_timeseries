@@ -50,7 +50,7 @@ gas_t_stud_bounds = (
     (99, 100),
 )
 gas_t_stud_params = {
-    "mean_strength": 0.5,
+    "mean_strength": 0.5, # try 0.1 and 0.3
     "var_strength": 0.5,
     "eps": 1e-6,
     # "max_var": 1000,
@@ -68,7 +68,7 @@ gluonts_feedforward_params = {
         "num_hidden_dimensions": [512, 256],
     },
     "training": {
-        "epochs": 5,
+        "epochs": 1,
         "learning_rate": 5 * 1e-4,
         "num_batches_per_epoch": 100,
     },
@@ -83,7 +83,7 @@ gluonts_transformer_params = {
         "num_heads": 8,
     },
     "training": {
-        "epochs": 5,
+        "epochs": 1,
         "learning_rate": 5 * 1e-4,
         "num_batches_per_epoch": 100,
     },
@@ -94,7 +94,7 @@ gluonts_transformer_params = {
 gluonts_deepar_params = {
     "main_model": {},
     "training": {
-        "epochs": 3,
+        "epochs": 1,
         "learning_rate": 1e-5,
         "num_batches_per_epoch": 100,
     },
@@ -105,7 +105,7 @@ gluonts_deepar_params = {
 gluonts_wavenet_params = {
     "main_model": {},
     "training": {
-        "epochs": 5,
+        "epochs": 1,
         "learning_rate": 1e-5,
         "num_batches_per_epoch": 100,
     },
