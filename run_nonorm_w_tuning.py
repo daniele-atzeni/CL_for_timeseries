@@ -190,16 +190,28 @@ class Objective:
                              num_batches_per_epoch=100, callbacks=[history], add_default_callbacks=False),
         )
       elif self.model == 'mqcnn':
-        estimator = MQCNNEstimator(
-            freq=self.freq,
-            prediction_length=self.prediction_length,
-            context_length=self.context_length,
-            distr_output=StudentTOutput(),
-            quantiles=None,
-            # scaling=True, # default is none, set True to use
-            trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                             num_batches_per_epoch=100, callbacks=[history], hybridize=False),
-        )
+        if self.batch_norm:
+          estimator = MQCNNEstimator(
+              freq=self.freq,
+              prediction_length=self.prediction_length,
+              context_length=self.context_length,
+              distr_output=StudentTOutput(),
+              quantiles=None,
+              # scaling=True, # default is none, set True to use
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history], hybridize=False),
+          )
+        else:
+          estimator = MQCNNEstimator(
+              freq=self.freq,
+              prediction_length=self.prediction_length,
+              context_length=self.context_length,
+              distr_output=StudentTOutput(),
+              quantiles=None,
+              scaling=False, 
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history], hybridize=False),
+          )
       elif self.model == 'deepar':
         if self.batch_norm:
           estimator = DeepAREstimator(
@@ -207,8 +219,8 @@ class Objective:
               context_length=self.context_length,
               distr_output=StudentTOutput(),
               prediction_length=self.prediction_length,
-              num_cells= params['num_cells'],
-              num_layers= params['num_layers'],
+              # num_cells= params['num_cells'],
+              # num_layers= params['num_layers'],
               scaling=True, # True by default
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                num_batches_per_epoch=100, callbacks=[history]),
@@ -219,8 +231,8 @@ class Objective:
               context_length=self.context_length,
               distr_output=StudentTOutput(),
               prediction_length=self.prediction_length,
-              num_cells= params['num_cells'],
-              num_layers= params['num_layers'],
+              # num_cells= params['num_cells'],
+              # num_layers= params['num_layers'],
               scaling=False, # True by default
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                               num_batches_per_epoch=100, callbacks=[history]),
@@ -276,7 +288,10 @@ class Objective:
 
       final_forecasts = []
       for f in forecasts:
-          final_forecasts.append(f.median)
+          if self.model == 'mqcnn':
+            final_forecasts.append(f.mean) # mqcnn doesnt support median or quantiles atm
+          else:
+            final_forecasts.append(f.median)
 
       if self.standardize and save:
         final_forecasts = self.data_manager.unstandardize_data(final_forecasts)
@@ -317,7 +332,7 @@ class Objective:
 
 def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multivariate, standardize, batch_norm):
 
-    start_time = time.time()
+    start_time = time.perf_counter()
     study = optuna.create_study(direction="minimize")
     obj = Objective(
             model_choice,DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=multivariate, standardize=standardize, batch_norm=batch_norm
@@ -337,7 +352,7 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multiva
     print("  Params: ")
     for key, value in trial.params.items():
         print("    {}: {}".format(key, value))
-    print(time.time() - start_time)
+    print(time.perf_counter() - start_time)
 
     if model_choice == 'feedforward':
       trial.params["num_hidden_dimensions"] = [ trial.params[f"hidden_dim_{i}"] for i in range(trial.params["num_layers"]) ]
@@ -392,6 +407,8 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multiva
     os.makedirs(f'{dir_name}/predictor', exist_ok=True)
     predictor.serialize(Path(f"{dir_name}/predictor"))
 
+    end_time = time.perf_counter()
+    runtime = (end_time - start_time) / 60
     file_path = "output.txt"
     with open(file_path, "a") as file:
         if batch_norm:
@@ -400,6 +417,7 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multiva
            file.write(f' ########################### {model_choice} no norm STD={standardize} {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
         
         file.write(f'with mean: {mean} and std: {std}\n')
+        file.write(f'runtime: {runtime}\n')
 
     print("\n###FINISHED!###")
 

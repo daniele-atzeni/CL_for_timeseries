@@ -1,7 +1,7 @@
-##### MEAN: 0.7059473117620805 STD: 0.08587285207127907
-##### TRIAL: 0.7100167658153306 PARAMS: {'model_dim_num_heads_pair': (62, 1), 'inner_ff_dim_scale': 4, 'embedding_dimension': 7, 'dropout_rate': 0.4767419816721639, 'trainer:learning_rate': 0.0006601132785787083, 'trainer:epochs': 94, 'model_dim': 62, 'num_heads': 1}
-##### RESULT: 0.638548520229959 PARAMS: {'model_dim_num_heads_pair': (62, 1), 'inner_ff_dim_scale': 4, 'embedding_dimension': 7, 'dropout_rate': 0.4767419816721639, 'trainer:learning_rate': 0.0006601132785787083, 'trainer:epochs': 94, 'model_dim': 62, 'num_heads': 1}
-##### RESULT: 0.8730697828411415 PARAMS: {'model_dim_num_heads_pair': (62, 1), 'inner_ff_dim_scale': 4, 'embedding_dimension': 7, 'dropout_rate': 0.4767419816721639, 'trainer:learning_rate': 0.0006601132785787083, 'trainer:epochs': 94, 'model_dim': 62, 'num_heads': 1}
-##### RESULT: 0.6520564020024612 PARAMS: {'model_dim_num_heads_pair': (62, 1), 'inner_ff_dim_scale': 4, 'embedding_dimension': 7, 'dropout_rate': 0.4767419816721639, 'trainer:learning_rate': 0.0006601132785787083, 'trainer:epochs': 94, 'model_dim': 62, 'num_heads': 1}
-##### RESULT: 0.66813689069939 PARAMS: {'model_dim_num_heads_pair': (62, 1), 'inner_ff_dim_scale': 4, 'embedding_dimension': 7, 'dropout_rate': 0.4767419816721639, 'trainer:learning_rate': 0.0006601132785787083, 'trainer:epochs': 94, 'model_dim': 62, 'num_heads': 1}
-##### RESULT: 0.697924963037451 PARAMS: {'model_dim_num_heads_pair': (62, 1), 'inner_ff_dim_scale': 4, 'embedding_dimension': 7, 'dropout_rate': 0.4767419816721639, 'trainer:learning_rate': 0.0006601132785787083, 'trainer:epochs': 94, 'model_dim': 62, 'num_heads': 1}
+##### MEAN: 5.54098770291997 STD: 0.09102309983984451
+##### TRIAL: 5.676626002442109 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
+##### RESULT: 5.493235428655527 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
+##### RESULT: 5.71395309366748 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
+##### RESULT: 5.549454435861121 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
+##### RESULT: 5.463614953547114 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
+##### RESULT: 5.484680602868604 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}

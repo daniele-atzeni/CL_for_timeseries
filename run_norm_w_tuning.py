@@ -405,6 +405,7 @@ class Objective:
                 context_length=self.context_length,
                 distr_output=StudentTOutput(),
                 quantiles=None,
+                scaling=False,
                 trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                     num_batches_per_epoch=100, callbacks=[history], hybridize=False),
             )
@@ -415,8 +416,8 @@ class Objective:
               distr_output=StudentTOutput(),
               context_length=self.context_length,
               prediction_length=self.prediction_length,
-              num_cells= params['num_cells'],
-              num_layers= params['num_layers'],
+            #   num_cells= params['num_cells'],
+            #   num_layers= params['num_layers'],
               trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                      num_batches_per_epoch=100, callbacks=[history]),
             #   trainer=Trainer(ctx=self.ctx,epochs=50, learning_rate=1e-4, num_batches_per_epoch=100),
@@ -439,7 +440,10 @@ class Objective:
 
         final_forecasts = []
         for f in forecasts:
-            final_forecasts.append(f.median) # f.mean for mqcnn
+          if self.model == 'mqcnn':
+            final_forecasts.append(f.mean) # mqcnn doesnt support median or quantiles atm
+          else:
+            final_forecasts.append(f.median)
 
         mase_metrics = []
         for item_id, ts in enumerate(test):
@@ -494,11 +498,11 @@ class Objective:
 def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER, n_trials, mean_str, var_str):
 
     multivariate = False
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     if mean_str == -1 and var_str == -1:
-        mean_strs = [0.5, 0.1, 0.01, 0.001]
-        var_strs = [0.5, 0.1, 0.01, 0.001]
+        mean_strs = [0, 0.5, 0.1, 0.01, 0.001]
+        var_strs = [0, 0.5, 0.1, 0.01, 0.001]
     elif mean_str == 0 and var_str == 0:
         mean_strs = [0]
         var_strs = [0]
@@ -526,7 +530,7 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER, n_trials, mean_str
         print("  Params: ")
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
-        print(time.time() - start_time)
+        print(time.perf_counter() - start_time)
 
         if best_best_trial is None or trial.value < best_best_trial.value:
             best_best_trial = trial
@@ -579,12 +583,15 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER, n_trials, mean_str
     # os.makedirs(f'{dir_name}/predictor', exist_ok=True)
     # predictor.serialize(Path(f"{dir_name}/predictor"))
 
+    end_time = time.perf_counter()
+    runtime = (end_time - start_time) / 60
     file_path = "output.txt"
     with open(file_path, "a") as file:
         file.write(f' ########################### {model_choice} with gas norm gas means {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
         file.write(f'trial values: {trial_values}\n')
         file.write(f'with mean_str: {best_str[0]} and var_str: {best_str[1]}\n')
         file.write(f'with mean: {mean} and std: {std}\n')
+        file.write(f'runtime: {runtime}\n')
 
     print("\n###FINISHED!###")
 
