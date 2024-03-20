@@ -1582,3 +1582,12 @@ runtime: 146.523944889432
 trial values: [{'str': (0, 0), 'best_valid_value': 0.490290029568229}]
 with mean_str: 0 and var_str: 0
 with mean: 0.6559992170880176 and std: 0.012222351883834916
+
+
+
+
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5362222059087154
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5362222059087154}]
+with mean_str: 0 and var_str: 0
+with mean: 0.5821157733925431 and std: 0.038884454726617515
+runtime: 77.93464643093758
