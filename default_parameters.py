@@ -50,8 +50,8 @@ gas_t_stud_bounds = (
     (99, 100),
 )
 gas_t_stud_params = {
-    "mean_strength": 0.5, # try 0.1 and 0.3
-    "var_strength": 0.5,
+    "mean_strength": 0, # try 0.1 and 0.3
+    "var_strength": 0,
     "eps": 1e-6,
     # "max_var": 1000,
 }

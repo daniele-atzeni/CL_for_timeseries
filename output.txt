@@ -1396,3 +1396,152 @@ with mean: 2.048977111649594 and std: 0.22404704733052122
 trial values: [{'str': (0.5, 0.5), 'best_valid_value': 0.5816714400503585}, {'str': (0.1, 0.1), 'best_valid_value': 0.7551707192390786}, {'str': (0.01, 0.01), 'best_valid_value': 1.0399098722377789}, {'str': (0.001, 0.001), 'best_valid_value': 0.8283653627169417}]
 with mean_str: 0.5 and var_str: 0.5
 with mean: 1.035237236454412 and std: 0.04586036784843497
+
+norm script, same network, different estimator, scaling false
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 7.288257009250303
+trial values: [{'str': (0, 0), 'best_valid_value': 7.288257009250303}]
+with mean_str: 0 and var_str: 0
+with mean: 7.433492790087767 and std: 0.3596810333786158
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 8.515612223572644
+trial values: [{'str': (0, 0), 'best_valid_value': 8.515612223572644}]
+with mean_str: 0 and var_str: 0
+with mean: 8.906968694351566 and std: 0.13488507374120437
+ ########################### transformer no norm STD=False 5 trials on fred_md Final MASE: 7.862873998968981
+with mean: 8.058062330075874 and std: 0.2966566932097664
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 6.987584267763361
+trial values: [{'str': (0, 0), 'best_valid_value': 6.987584267763361}]
+with mean_str: 0 and var_str: 0
+with mean: 7.044786071344103 and std: 0.13654756039365734
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 7.7393618724544115
+trial values: [{'str': (0, 0), 'best_valid_value': 7.7393618724544115}]
+with mean_str: 0 and var_str: 0
+with mean: 8.183581040415358 and std: 0.22228330334947308
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 1.1819703195096314
+trial values: [{'str': (0, 0), 'best_valid_value': 1.1819703195096314}]
+with mean_str: 0 and var_str: 0
+with mean: 0.7642603309057913 and std: 0.12715597912664492 # norm script, default transformer, scaling true
+
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 22.124732858915237
+trial values: [{'str': (0, 0), 'best_valid_value': 22.124732858915237}]
+with mean_str: 0 and var_str: 0
+with mean: 21.076436539957523 and std: 0.39629630646856956
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 8.635146422655207
+trial values: [{'str': (0, 0), 'best_valid_value': 8.635146422655207}]
+with mean_str: 0 and var_str: 0
+with mean: 10.099759377627551 and std: 0.35611130959329496
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 2.147321636378089
+trial values: [{'str': (0, 0), 'best_valid_value': 2.147321636378089}]
+with mean_str: 0 and var_str: 0
+with mean: 2.5924248246495543 and std: 1.1815180791066042
+ ########################### transformer no norm STD=True 5 trials on fred_md Final MASE: 1.4593262313927824
+with mean: 2.4158326534746646 and std: 0.3181443356426782
+ ########################### transformer no norm STD=False 1 trials on fred_md Final MASE: 10.61145874233573
+with mean: 9.64052944632581 and std: 0.5508102231156434
+ ########################### feedforward with gas norm gas means 1 trials on fred_md Final MASE: 14.685742272232185
+trial values: [{'str': (0, 0), 'best_valid_value': 14.685742272232185}]
+with mean_str: 0 and var_str: 0
+with mean: 13.713166389836925 and std: 0.5573718997538499
+ ########################### feedforward no norm STD=True 1 trials on fred_md Final MASE: 0.9855929278542406
+with mean: 1.3894798324797395 and std: 0.35056224092164356
+ ########################### transformer no norm STD=True 5 trials on fred_md Final MASE: 0.8163031138191031
+with mean: 1.3076618767742612 and std: 0.427384909132371
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 1.3487578224889427
+trial values: [{'str': (0, 0), 'best_valid_value': 1.3487578224889427}]
+with mean_str: 0 and var_str: 0
+with mean: 1.3218958181710359 and std: 0.36923022588538257
+ ########################### feedforward no norm STD=False 1 trials on fred_md Final MASE: 21.38036772125727
+with mean: 26.143051700858013 and std: 4.894586684470545
+ ########################### feedforward no norm STD=False 1 trials on fred_md Final MASE: 55.09551678171407
+with mean: 59.67238763473084 and std: 4.659920937848933
+ ########################### feedforward no norm STD=True 1 trials on fred_md Final MASE: 30.116109503441063
+with mean: 32.865195318007714 and std: 1.0047279055091225
+ ########################### feedforward no norm STD=False 1 trials on fred_md Final MASE: 2.557480843615888
+with mean: 5.788726575213048 and std: 1.4754278683587134
+ ########################### feedforward no norm STD=False 1 trials on fred_md Final MASE: 39.88171761718627
+with mean: 46.56267852358623 and std: 7.674659048910851
+ ########################### transformer no norm STD=False 1 trials on fred_md Final MASE: 1.4389703691606994
+with mean: 2.1633359089265567 and std: 0.7663746086588228
+ ########################### transformer no norm STD=False 1 trials on fred_md Final MASE: 2.3006219998732766
+with mean: 2.62984633689939 and std: 0.9164107429729348
+
+ ########################### feedforward no norm STD=True 10 trials on fred_md Final MASE: 0.5444220407461502
+with mean: 0.6033003917220352 and std: 0.04848193343133814
+ ########################### feedforward no norm STD=False 10 trials on fred_md Final MASE: 0.5682215246779945
+with mean: 0.7122872922413159 and std: 0.029614894271440786
+ ########################### feedforward BATCH no norm STD=False 10 trials on fred_md Final MASE: 0.5882841315275086
+with mean: 0.7416008692597009 and std: 0.03430766059736273
+ ########################### transformer BATCH no norm STD=False 5 trials on fred_md Final MASE: 1.0228698863562857
+with mean: 1.4595784452569034 and std: 0.49697990287909255
+ ########################### transformer no norm STD=True 5 trials on fred_md Final MASE: 0.9664424983749632
+with mean: 1.096753600493161 and std: 0.2510898482032048
+ ########################### transformer no norm STD=False 5 trials on fred_md Final MASE: 8.927402109158415
+with mean: 9.403423650261482 and std: 0.17742189229312075
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.8855882637528172
+trial values: [{'str': (0, 0), 'best_valid_value': 0.8855882637528172}]
+with mean_str: 0 and var_str: 0
+with mean: 1.0375144740557007 and std: 0.32032399611027984
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5526657470561095
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5526657470561095}]
+with mean_str: 0 and var_str: 0
+with mean: 0.5873808052291645 and std: 0.01257031994201334
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5133949360035199
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5133949360035199}]
+with mean_str: 0 and var_str: 0
+with mean: 0.7356257532995689 and std: 0.05098683187233799
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 1.7222490869194342
+trial values: [{'str': (0, 0), 'best_valid_value': 1.7222490869194342}]
+with mean_str: 0 and var_str: 0
+with mean: 1.770355013157171 and std: 0.15996957466017628
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5310767441337788
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5310767441337788}]
+with mean_str: 0 and var_str: 0
+with mean: 0.5603411137041635 and std: 0.029248787582282127
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.6866576889861572
+trial values: [{'str': (0, 0), 'best_valid_value': 0.6866576889861572}]
+with mean_str: 0 and var_str: 0
+with mean: 0.6333885201630619 and std: 0.05908440031414203
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.845759426827769
+trial values: [{'str': (0.5, 0.5), 'best_valid_value': 1.9019696015142433}, {'str': (0.1, 0.1), 'best_valid_value': 0.845759426827769}, {'str': (0.01, 0.01), 'best_valid_value': 1.5317271865603552}, {'str': (0.001, 0.001), 'best_valid_value': 0.9741238394226794}]
+with mean_str: 0.1 and var_str: 0.1
+with mean: 1.027986055292212 and std: 0.09794565691633575
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.562949855322635
+trial values: [{'str': (0.5, 0.5), 'best_valid_value': 3.161354020707313}, {'str': (0.1, 0.1), 'best_valid_value': 0.9474554746077094}, {'str': (0.01, 0.01), 'best_valid_value': 0.562949855322635}, {'str': (0.001, 0.001), 'best_valid_value': 0.5744109646609739}]
+with mean_str: 0.01 and var_str: 0.01
+with mean: 0.6023907055814489 and std: 0.03330434587085074
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.8254656437075459
+trial values: [{'str': (0.5, 0.5), 'best_valid_value': 1.8607350573422619}, {'str': (0.1, 0.1), 'best_valid_value': 0.9992044968185244}, {'str': (0.01, 0.01), 'best_valid_value': 0.9220851365003251}, {'str': (0.001, 0.001), 'best_valid_value': 0.8254656437075459}]
+with mean_str: 0.001 and var_str: 0.001
+with mean: 0.6562182764036492 and std: 0.11722700011966784
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5206956039874947
+trial values: [{'str': (0.5, 0.5), 'best_valid_value': 3.09563786984242}, {'str': (0.1, 0.1), 'best_valid_value': 0.9228976841493408}, {'str': (0.01, 0.01), 'best_valid_value': 0.5206956039874947}, {'str': (0.001, 0.001), 'best_valid_value': 0.5411226384982268}]
+with mean_str: 0.01 and var_str: 0.01
+with mean: 0.6140490994497905 and std: 0.048674803896417415
+
+ ########################### feedforward no norm STD=False 10 trials on fred_md Final MASE: 0.5565679147611731
+with mean: 0.7656857091433628 and std: 0.05404536031897862
+ ########################### feedforward BATCH no norm STD=False 10 trials on fred_md Final MASE: 0.6263942268394502
+with mean: 0.8198722014527396 and std: 0.08146408068141776
+ ########################### feedforward no norm STD=True 10 trials on fred_md Final MASE: 0.5678000648878445
+with mean: 0.582619019066441 and std: 0.024996807682685866
+ ########################### transformer no norm STD=False 5 trials on fred_md Final MASE: 8.285163447528095
+with mean: 8.411612831218793 and std: 0.3391824512983011
+ ########################### transformer BATCH no norm STD=False 5 trials on fred_md Final MASE: 1.5697568483675144
+with mean: 2.1811580463639904 and std: 0.5046568745222115
+ ########################### transformer no norm STD=True 5 trials on fred_md Final MASE: 0.7100167658153306
+with mean: 0.7059473117620805 and std: 0.08587285207127907
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5023098108670271
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5023098108670271}]
+with mean_str: 0 and var_str: 0
+with mean: 0.5685716728751933 and std: 0.023683704746881657
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.7437153687935355
+trial values: [{'str': (0, 0), 'best_valid_value': 0.7437153687935355}]
+with mean_str: 0 and var_str: 0
+with mean: 0.6494661673802364 and std: 0.054059639503076774
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5045101707906542
+trial values: [{'str': (0.5, 0.5), 'best_valid_value': 2.9758017380983826}, {'str': (0.1, 0.1), 'best_valid_value': 0.9054582600559127}, {'str': (0.01, 0.01), 'best_valid_value': 0.5439091333982424}, {'str': (0.001, 0.001), 'best_valid_value': 0.5045101707906542}]
+with mean_str: 0.001 and var_str: 0.001
+with mean: 0.584532906288953 and std: 0.037457322876048256
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.9432544751692586
+trial values: [{'str': (0.5, 0.5), 'best_valid_value': 2.2535771959949447}, {'str': (0.1, 0.1), 'best_valid_value': 0.9432544751692586}, {'str': (0.01, 0.01), 'best_valid_value': 1.1927268319521764}, {'str': (0.001, 0.001), 'best_valid_value': 1.2852780382794176}]
+with mean_str: 0.1 and var_str: 0.1
+with mean: 0.9556746921761334 and std: 0.06162025059440775

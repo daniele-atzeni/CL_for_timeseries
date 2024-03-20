@@ -122,14 +122,14 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
         F,
         past_target: Tensor,
         future_target: Tensor,
-        past_feat_dynamic_real: Tensor,
-        feat_static_real: Tensor,
+        past_means_vars: Tensor,
+        gas_params: Tensor,
     ) -> Tensor:
         distr_args, loc, scale = self.get_distr_args(
             F,
             past_target,
-            past_feat_dynamic_real,
-            feat_static_real,
+            past_means_vars,
+            gas_params,
         )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
         # (batch_size, prediction_length, target_dim)
@@ -148,14 +148,14 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
         self,
         F,
         past_target: Tensor,
-        past_feat_dynamic_real: Tensor,
-        feat_static_real: Tensor,
+        past_means_vars: Tensor,
+        gas_params: Tensor,
     ) -> Tensor:
         distr_args, loc, scale = self.get_distr_args(
             F,
             past_target,
-            past_feat_dynamic_real,
-            feat_static_real,
+            past_means_vars,
+            gas_params,
         )
         distr = self.distr_output.distribution(distr_args, loc=loc, scale=scale)
 
@@ -176,13 +176,13 @@ class SimpleFeedForwardDistributionNetwork(SimpleFeedForwardNetworkBase):
         self,
         F,
         past_target: Tensor,
-        past_feat_dynamic_real: Tensor,
-        feat_static_real: Tensor,
+        past_means_vars: Tensor,
+        gas_params: Tensor,
     ) -> Tensor:
         distr_args, loc, scale = self.get_distr_args(
             F,
             past_target,
-            past_feat_dynamic_real,
-            feat_static_real,
+            past_means_vars,
+            gas_params,
         )
         return distr_args, loc, scale  # type:ignore not my code

@@ -87,8 +87,8 @@ class GluonTSDataManager:
             train_dataset = list(gluonts_dataset.train)
             test_dataset = list(gluonts_dataset.test)
 
-            # train_dataset = train_dataset[:2]  # for debugging
-            # test_dataset = test_dataset[:2]  # for debugging
+            # train_dataset = train_dataset[:1]  # for debugging
+            # test_dataset = test_dataset[:1]  # for debugging
 
             assert isinstance(gluonts_dataset.metadata.prediction_length, int)
             if self.name in NAME_TO_CONTEXT_AND_PRED_GLUONTS.keys():

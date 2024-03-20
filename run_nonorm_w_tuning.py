@@ -1,6 +1,7 @@
 import os
 import pickle
-
+import warnings
+warnings.filterwarnings("ignore")
 import numpy as np
 
 from utils import init_folder, load_list_of_elements, get_dataset_and_metadata, get_dataset_from_file
@@ -59,7 +60,7 @@ SEASONALITY_MAP = {
 
 class Objective:
 
-    def __init__( self, MODEL, DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=False, standardize=False):
+    def __init__( self, MODEL, DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=False, standardize=False, batch_norm=False):
         
         data_manager = GluonTSDataManager(DATASET_NAME, multivariate, DATASET_FILE_FOLDER, standardize)
         self.data_manager = data_manager
@@ -71,6 +72,7 @@ class Objective:
         self.freq = data_manager.freq
         self.dataset_name = DATASET_NAME
         self.standardize = standardize
+        self.batch_norm = batch_norm
         self.seasonality = SEASONALITY_MAP[self.freq]
         if isinstance(self.seasonality, list):
           self.seasonality = min(self.seasonality) # Use to calculate MASE
@@ -147,27 +149,39 @@ class Objective:
     def train_and_test(self, params, save=False):
 
       history = TrainingHistory()
+      # from my_models.gluonts_models.univariate.probabilistic_forecast.feedforward_test._estimator import SimpleFeedForwardEstimator as FF_test
       if self.model == 'feedforward' and not self.multivariate:
-        estimator = SimpleFeedForwardEstimator(
-            num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
-            prediction_length=self.prediction_length,
-            context_length=self.context_length,
-            # batch_normalization=True,
-            mean_scaling=False,
-            trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                             num_batches_per_epoch=100, callbacks=[history]),
-        )
-      elif self.model == 'feedforward' and self.multivariate:
-        estimator = FF_gluonts_multivariate(
-            num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
-            prediction_length=self.prediction_length,
-            context_length=self.context_length,
-            mean_scaling=False,
-            # batch_normalization=True,
-            distr_output=MultivariateGaussianOutput(dim=self.n_features),
-            trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                             num_batches_per_epoch=100, callbacks=[history]),
-        )
+        if self.batch_norm:
+          estimator = SimpleFeedForwardEstimator( # SimpleFeedForwardEstimator FF_test
+              num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
+              prediction_length=self.prediction_length,
+              context_length=self.context_length,
+              batch_normalization=True,
+              mean_scaling=False,
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history]),
+          )
+        else:
+          estimator = SimpleFeedForwardEstimator(
+              num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
+              prediction_length=self.prediction_length,
+              context_length=self.context_length,
+              batch_normalization=False,
+              mean_scaling=False,
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history]),
+          )
+      # elif self.model == 'feedforward' and self.multivariate:
+      #   estimator = FF_gluonts_multivariate(
+      #       num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
+      #       prediction_length=self.prediction_length,
+      #       context_length=self.context_length,
+      #       mean_scaling=False,
+      #       # batch_normalization=True,
+      #       distr_output=MultivariateGaussianOutput(dim=self.n_features),
+      #       trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+      #                        num_batches_per_epoch=100, callbacks=[history]),
+      #   )
       elif self.model == 'wavenet':
         estimator = WaveNetEstimator(
             freq=self.freq,
@@ -187,38 +201,69 @@ class Objective:
                              num_batches_per_epoch=100, callbacks=[history], hybridize=False),
         )
       elif self.model == 'deepar':
-        estimator = DeepAREstimator(
-            freq=self.freq,
-            context_length=self.context_length,
-            distr_output=StudentTOutput(),
-            prediction_length=self.prediction_length,
-            num_cells= params['num_cells'],
-            num_layers= params['num_layers'],
-            scaling=False, # True by default
-            trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                             num_batches_per_epoch=100, callbacks=[history]),
-        )
+        if self.batch_norm:
+          estimator = DeepAREstimator(
+              freq=self.freq,
+              context_length=self.context_length,
+              distr_output=StudentTOutput(),
+              prediction_length=self.prediction_length,
+              num_cells= params['num_cells'],
+              num_layers= params['num_layers'],
+              scaling=True, # True by default
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                               num_batches_per_epoch=100, callbacks=[history]),
+          )
+        else:
+          estimator = DeepAREstimator(
+              freq=self.freq,
+              context_length=self.context_length,
+              distr_output=StudentTOutput(),
+              prediction_length=self.prediction_length,
+              num_cells= params['num_cells'],
+              num_layers= params['num_layers'],
+              scaling=False, # True by default
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history]),
+          )
       elif self.model == 'transformer':
-        estimator = TransformerEstimator(
-            freq=self.freq,
-            context_length=self.context_length,
-            prediction_length=self.prediction_length,
-            distr_output=StudentTOutput(),
-            inner_ff_dim_scale= params['inner_ff_dim_scale'],
-            model_dim= params['model_dim'],
-            embedding_dimension= params['embedding_dimension'],
-            num_heads= params['num_heads'],
-            dropout_rate= params['dropout_rate'],
-            scaling=False, # True by default
-            trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                             num_batches_per_epoch=100, callbacks=[history]),
-        )
+        if self.batch_norm:
+          estimator = TransformerEstimator(
+              freq=self.freq,
+              context_length=self.context_length,
+              prediction_length=self.prediction_length,
+              distr_output=StudentTOutput(),
+              # inner_ff_dim_scale= params['inner_ff_dim_scale'],
+              # model_dim= params['model_dim'],
+              # embedding_dimension= params['embedding_dimension'],
+              # num_heads= params['num_heads'],
+              # dropout_rate= params['dropout_rate'],
+              scaling=True, # True by default False
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                               num_batches_per_epoch=100, callbacks=[history]),
+          )
+        else:
+          estimator = TransformerEstimator(
+              freq=self.freq,
+              context_length=self.context_length,
+              prediction_length=self.prediction_length,
+              distr_output=StudentTOutput(),
+              # inner_ff_dim_scale= params['inner_ff_dim_scale'],
+              # model_dim= params['model_dim'],
+              # embedding_dimension= params['embedding_dimension'],
+              # num_heads= params['num_heads'],
+              # dropout_rate= params['dropout_rate'],
+              scaling=False, # True by default False
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history]),
+              # trainer=Trainer(ctx=self.ctx,epochs=1, learning_rate=5*1e-4,
+              #                  num_batches_per_epoch=100, callbacks=[history]),
+          )
 
       ## TRAIN
       predictor = estimator.train(self.train, self.validation)
       ## EVALUATE
       if not save:
-         test = copy.deepcopy(self.validation)
+         test = copy.deepcopy(self.validation) # deep copy so unstandardize_data doesn't affect the original test set
       else:
          test = copy.deepcopy(self.test)
       forecast_it, ts_it = make_evaluation_predictions(
@@ -270,12 +315,12 @@ class Objective:
 
 
 
-def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multivariate, standardize):
+def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multivariate, standardize, batch_norm):
 
     start_time = time.time()
     study = optuna.create_study(direction="minimize")
     obj = Objective(
-            model_choice,DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=multivariate, standardize=standardize
+            model_choice,DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=multivariate, standardize=standardize, batch_norm=batch_norm
         )
     study.optimize(
         obj,
@@ -349,7 +394,11 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multiva
 
     file_path = "output.txt"
     with open(file_path, "a") as file:
-        file.write(f' ########################### {model_choice} no norm STD={standardize} {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
+        if batch_norm:
+          file.write(f' ########################### {model_choice} BATCH no norm STD={standardize} {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
+        else:
+           file.write(f' ########################### {model_choice} no norm STD={standardize} {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
+        
         file.write(f'with mean: {mean} and std: {std}\n')
 
     print("\n###FINISHED!###")
@@ -366,7 +415,8 @@ if __name__ == "__main__":
   parser.add_argument('--dataset_file_folder', type=str, default=None)
   parser.add_argument('--multivariate', action='store_true') # omit = false, --multivariate = true
   parser.add_argument('--standardize', action='store_true') # omit = false, --multivariate = true
+  parser.add_argument('--batch_norm', action='store_true') # omit = false, --multivariate = true
   # parser.add_argument('--use_tsf', action='store_true')
   args = parser.parse_args()
   print(args)
-  run(args.dataset_name, args.model_choice, args.ctx, args.dataset_file_folder, args.n_trials, args.multivariate, args.standardize)
+  run(args.dataset_name, args.model_choice, args.ctx, args.dataset_file_folder, args.n_trials, args.multivariate, args.standardize, args.batch_norm)

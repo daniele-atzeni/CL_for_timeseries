@@ -26,7 +26,6 @@ from gluonts.dataset.loader import (
 )
 from gluonts.model.forecast_generator import DistributionForecastGenerator
 from gluonts.mx.batchify import batchify
-from gluonts.mx import copy_parameters
 from gluonts.mx.distribution import DistributionOutput, StudentTOutput
 from gluonts.mx.model.estimator import GluonEstimator
 from gluonts.mx.model.predictor import RepresentableBlockPredictor
@@ -41,8 +40,6 @@ from gluonts.transform import (
     TestSplitSampler,
     Transformation,
     ValidationSplitSampler,
-    Chain,
-    AsNumpyArray,
 )
 from gluonts.transform.feature import (
     DummyValueImputation,
@@ -57,19 +54,79 @@ from ._network import (
 
 
 class SimpleFeedForwardEstimator(GluonEstimator):
+    """
+    SimpleFeedForwardEstimator shows how to build a simple MLP model predicting
+    the next target time-steps given the previous ones.
+
+    Given that we want to define a gluon model trainable by SGD, we inherit the
+    parent class `GluonEstimator` that handles most of the logic for fitting a
+    neural-network.
+
+    We thus only have to define:
+
+    1. How the data is transformed before being fed to our model::
+
+        def create_transformation(self) -> Transformation
+
+    2. How the training happens::
+
+        def create_training_network(self) -> HybridBlock
+
+    3. how the predictions can be made for a batch given a trained network::
+
+        def create_predictor(
+             self,
+             transformation: Transformation,
+             trained_net: HybridBlock,
+        ) -> Predictor
+
+
+    Parameters
+    ----------
+    prediction_length
+        Length of the prediction horizon
+    trainer
+        Trainer object to be used (default: Trainer())
+    num_hidden_dimensions
+        Number of hidden nodes in each layer (default: [40, 40])
+    context_length
+        Number of time units that condition the predictions
+        (default: None, in which case context_length = prediction_length)
+    distr_output
+        Distribution to fit (default: StudentTOutput())
+    batch_normalization
+        Whether to use batch normalization (default: False)
+    mean_scaling
+        Scale the network input by the data mean and the network output by
+        its inverse (default: True)
+    num_parallel_samples
+        Number of evaluation samples per time series to increase parallelism
+        during inference. This is a model optimization that does not affect the
+        accuracy (default: 100)
+    train_sampler
+        Controls the sampling of windows during training.
+    validation_sampler
+        Controls the sampling of windows during validation.
+    batch_size
+        The size of the batches to be used training and prediction.
+    """
+
+    # The validated() decorator makes sure that parameters are checked by
+    # Pydantic and allows to serialize/print models. Note that all parameters
+    # have defaults except for `prediction_length`. which is
+    # recommended in GluonTS to allow to compare models easily.
     @validated()
     def __init__(
         self,
-        mean_layer,  ## my code here
-        distr_output: DistributionOutput,  ## my code here
         prediction_length: int,
         sampling: bool = True,
         trainer: Trainer = Trainer(),
         num_hidden_dimensions: Optional[List[int]] = None,
         context_length: Optional[int] = None,
+        distr_output: DistributionOutput = StudentTOutput(),
         imputation_method: Optional[MissingValueImputation] = None,
         batch_normalization: bool = False,
-        mean_scaling: bool = False,
+        mean_scaling: bool = True,
         num_parallel_samples: int = 100,
         train_sampler: Optional[InstanceSampler] = None,
         validation_sampler: Optional[InstanceSampler] = None,
@@ -82,7 +139,9 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         """
         super().__init__(trainer=trainer, batch_size=batch_size)
 
-        assert prediction_length > 0, "The value of `prediction_length` should be > 0"
+        assert (
+            prediction_length > 0
+        ), "The value of `prediction_length` should be > 0"
         assert (
             context_length is None or context_length > 0
         ), "The value of `context_length` should be > 0"
@@ -92,8 +151,6 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         assert (
             num_parallel_samples > 0
         ), "The value of `num_parallel_samples` should be > 0"
-
-        self.mean_layer = mean_layer  ## my code here
 
         self.num_hidden_dimensions = (
             num_hidden_dimensions
@@ -134,24 +191,19 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     # transformation that includes time features, age feature, observed values
     # indicator, ...
     def create_transformation(self) -> Transformation:
-        return Chain(
-            # [AsNumpyArray(field=FieldName.FEAT_STATIC_REAL, expected_ndim=1)]
-            # + 
+        return SelectFields(
             [
-                SelectFields(
-                    [
-                        FieldName.ITEM_ID,
-                        FieldName.INFO,
-                        FieldName.START,
-                        FieldName.TARGET,
-                        # FieldName.FEAT_DYNAMIC_REAL,
-                        # FieldName.FEAT_STATIC_REAL,
-                        'means_vars',
-                        'gas_params',
-                    ],
-                    allow_missing=True,
-                )
-            ]
+                FieldName.ITEM_ID,
+                FieldName.INFO,
+                FieldName.START,
+                FieldName.TARGET,
+            ],
+            allow_missing=True,
+        ) + AddObservedValuesIndicator(
+            target_field=FieldName.TARGET,
+            output_field=FieldName.OBSERVED_VALUES,
+            dtype=self.dtype,
+            imputation_method=self.imputation_method,
         )
 
     def _create_instance_splitter(self, mode: str):
@@ -171,10 +223,7 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             instance_sampler=instance_sampler,
             past_length=self.context_length,
             future_length=self.prediction_length,
-            time_series_fields=[
-                # FieldName.FEAT_DYNAMIC_REAL,
-                'means_vars',
-            ],
+            time_series_fields=[FieldName.OBSERVED_VALUES],
         )
 
     def create_training_data_loader(
@@ -182,7 +231,9 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         data: Dataset,
         **kwargs,
     ) -> DataLoader:
-        input_names = get_hybrid_forward_input_names(SimpleFeedForwardTrainingNetwork)
+        input_names = get_hybrid_forward_input_names(
+            SimpleFeedForwardTrainingNetwork
+        )
         instance_splitter = self._create_instance_splitter("training")
         return TrainDataLoader(
             dataset=data,
@@ -197,7 +248,9 @@ class SimpleFeedForwardEstimator(GluonEstimator):
         data: Dataset,
         **kwargs,
     ) -> DataLoader:
-        input_names = get_hybrid_forward_input_names(SimpleFeedForwardTrainingNetwork)
+        input_names = get_hybrid_forward_input_names(
+            SimpleFeedForwardTrainingNetwork
+        )
         instance_splitter = self._create_instance_splitter("validation")
         return ValidationDataLoader(
             dataset=data,
@@ -212,7 +265,6 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     # instance for analysis, see DeepARTrainingNetwork for an example.
     def create_training_network(self) -> HybridBlock:
         return SimpleFeedForwardTrainingNetwork(
-            mean_layer=self.mean_layer,  ## my code here
             num_hidden_dimensions=self.num_hidden_dimensions,
             prediction_length=self.prediction_length,
             context_length=self.context_length,
@@ -226,31 +278,8 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     def create_predictor(self, transformation, trained_network):
         prediction_splitter = self._create_instance_splitter("test")
 
-        # point forecasting predictor
-        # prediction_network = MyPredNetwork(
-        #     mean_layer=self.mean_layer,  ## my code here
-        #     num_hidden_dimensions=self.num_hidden_dimensions,
-        #     prediction_length=self.prediction_length,
-        #     context_length=self.context_length,
-        #     distr_output=self.distr_output,
-        #     batch_normalization=self.batch_normalization,
-        #     mean_scaling=self.mean_scaling,
-        # )
-
-        # copy_parameters(trained_network, prediction_network)
-
-        # return RepresentableBlockPredictor(
-        #     input_transform=transformation + prediction_splitter,
-        #     prediction_net=prediction_network,
-        #     batch_size=self.batch_size,
-        #     prediction_length=self.prediction_length,
-        #     ctx=self.trainer.ctx,
-        # )
-
-
         if self.sampling is True:
             prediction_network = SimpleFeedForwardSamplingNetwork(
-                mean_layer=self.mean_layer,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,
@@ -271,7 +300,6 @@ class SimpleFeedForwardEstimator(GluonEstimator):
 
         else:
             prediction_network = SimpleFeedForwardDistributionNetwork(
-                mean_layer=self.mean_layer,  ## my code here
                 num_hidden_dimensions=self.num_hidden_dimensions,
                 prediction_length=self.prediction_length,
                 context_length=self.context_length,
@@ -285,7 +313,9 @@ class SimpleFeedForwardEstimator(GluonEstimator):
                 input_transform=transformation + prediction_splitter,
                 prediction_net=prediction_network,
                 batch_size=self.batch_size,
-                forecast_generator=DistributionForecastGenerator(self.distr_output),
+                forecast_generator=DistributionForecastGenerator(
+                    self.distr_output
+                ),
                 prediction_length=self.prediction_length,
                 ctx=self.trainer.ctx,
             )

@@ -1,6 +1,7 @@
 import os
 import pickle
-
+import warnings
+warnings.filterwarnings("ignore")
 import numpy as np
 
 from utils import get_dataset_from_file
@@ -62,6 +63,8 @@ from sklearn.linear_model import LinearRegression
 import time
 import optuna
 import argparse
+import copy
+
 seasonality = {
     'nn5_weekly': 52.17857142857143,
     'us_births_dataset': 7,
@@ -140,23 +143,23 @@ class Objective:
 
         # run for the first time to get all the means and stuff
         training_params = run_gas_experiment(
-          DATASET_NAME,
-          DATASET_TYPE,
-          DATASET_PARAMS,
-          ROOT_FOLDER,
-          NORMALIZER_NAME,
-          NORMALIZER_INITIAL_GUESSES,
-          NORMALIZER_BOUNDS,
-          MEAN_LAYER_NAME,
-          DL_MODEL_LIBRARY,
-          DL_MODEL_NAME,
-          DATASET_FILE_FOLDER,
-          NORMALIZER_PARAMS,
-          MEAN_LAYER_PARAMS,
-          DL_MODEL_PARAMS,
-          N_TRAINING_SAMPLES,
-          N_TEST_SAMPLES,
-          probabilistic=True,
+            DATASET_NAME,
+            DATASET_TYPE,
+            DATASET_PARAMS,
+            ROOT_FOLDER,
+            NORMALIZER_NAME,
+            NORMALIZER_INITIAL_GUESSES,
+            NORMALIZER_BOUNDS,
+            MEAN_LAYER_NAME,
+            DL_MODEL_LIBRARY,
+            DL_MODEL_NAME,
+            DATASET_FILE_FOLDER,
+            normalizer_params=NORMALIZER_PARAMS,
+            mean_layer_params=MEAN_LAYER_PARAMS,
+            dl_model_params=DL_MODEL_PARAMS,
+            n_training_samples=N_TRAINING_SAMPLES,
+            n_test_samples=N_TEST_SAMPLES,
+            probabilistic=True,
         )
 
         # get the parameters needed to run the model part
@@ -265,9 +268,14 @@ class Objective:
 
         params = self.get_params(trial)
 
+        # with open(f'train_{trial.number}_2.pkl', 'wb') as f:
+        #     pickle.dump(self.train, f)
+
+
         return self.train_and_test(params)
 
     def train_and_test(self, params, save=False):
+        
 
         history = TrainingHistory()
         trained_mean_layer = self.mean_layer
@@ -298,31 +306,31 @@ class Objective:
         for param in mean_layer.collect_params().values():
             param.grad_req = "null"
 
-        if self.model == 'feedforward' and self.multivariate:
-            if isinstance(trained_mean_layer, GASNormalizer):
-                estimator = FF_gluonts_multivariate_gas(
-                    mean_layer,
-                    self.n_features,
-                    MultivariateGaussianOutput(dim=self.n_features),
-                    prediction_length=self.prediction_length,
-                    context_length=self.context_length,
-                    num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
-                    trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                                     num_batches_per_epoch=100, callbacks=[history]),
+        # if self.model == 'feedforward' and self.multivariate:
+        #     if isinstance(trained_mean_layer, GASNormalizer):
+        #         estimator = FF_gluonts_multivariate_gas(
+        #             mean_layer,
+        #             self.n_features,
+        #             MultivariateGaussianOutput(dim=self.n_features),
+        #             prediction_length=self.prediction_length,
+        #             context_length=self.context_length,
+        #             num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
+        #             trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+        #                              num_batches_per_epoch=100, callbacks=[history]),
                     
-                )
-            else:
-                estimator = FF_gluonts_multivariate_linear(
-                    mean_layer,
-                    self.n_features,
-                    MultivariateGaussianOutput(dim=self.n_features),
-                    prediction_length=self.prediction_length,
-                    context_length=self.context_length,
-                    num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
-                    trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                                     num_batches_per_epoch=100, callbacks=[history]),
-                )
-        elif self.model == 'feedforward' and not self.multivariate:
+        #         )
+        #     else:
+        #         estimator = FF_gluonts_multivariate_linear(
+        #             mean_layer,
+        #             self.n_features,
+        #             MultivariateGaussianOutput(dim=self.n_features),
+        #             prediction_length=self.prediction_length,
+        #             context_length=self.context_length,
+        #             num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
+        #             trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+        #                              num_batches_per_epoch=100, callbacks=[history]),
+        #         )
+        if self.model == 'feedforward' and not self.multivariate:
             if isinstance(trained_mean_layer, GASNormalizer):
                 estimator = FF_gluonts_univariate_gas(
                     mean_layer,
@@ -333,33 +341,22 @@ class Objective:
                     trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                      num_batches_per_epoch=100, callbacks=[history]),
                 )
-            else:
-                estimator = FF_gluonts_univariate_linear(
-                    mean_layer,
-                    distr_output=StudentTOutput(),
-                    prediction_length=self.prediction_length,
-                    context_length=self.context_length,
-                    trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                                     num_batches_per_epoch=100, callbacks=[history]),
-                )
+            # else:
+            #     estimator = FF_gluonts_univariate_linear(
+            #         mean_layer,
+            #         distr_output=StudentTOutput(),
+            #         prediction_length=self.prediction_length,
+            #         context_length=self.context_length,
+            #         trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+            #                          num_batches_per_epoch=100, callbacks=[history]),
+            #     )
         elif self.model == 'transformer':
         #   from point_distributions import LaplaceFixedVarianceOutput
         #   from gluonts.mx.model.transformer import TransformerEstimator
-          estimator = Transformer_gluonts_gas_means( # Transformer_gluonts_gas_means Transformer_gluonts_gas_means_point
-              mean_layer,
-              freq=self.freq,
-              context_length=self.context_length,
-              prediction_length=self.prediction_length,
-              distr_output=StudentTOutput(), # StudentTOutput LaplaceFixedVarianceOutput
-              inner_ff_dim_scale= params['inner_ff_dim_scale'],
-              model_dim= params['model_dim'],
-              embedding_dimension= params['embedding_dimension'],
-              num_heads= params['num_heads'],
-              dropout_rate= params['dropout_rate'],
-              trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
-                                     num_batches_per_epoch=100, callbacks=[history]),
-          )
-        #   estimator = Transformer_test( # Transformer_gluonts_gas_means Transformer_gluonts_gas_means_point Transformer_test
+        #   from my_models.gluonts_models.univariate.probabilistic_forecast.transformer_test2._estimator import (
+        #     TransformerEstimator as Transformer_test2,
+        #     )
+        #   estimator = Transformer_gluonts_gas_means( # Transformer_gluonts_gas_means Transformer_gluonts_gas_means_point
         #       mean_layer,
         #       freq=self.freq,
         #       context_length=self.context_length,
@@ -373,6 +370,24 @@ class Objective:
         #       trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
         #                              num_batches_per_epoch=100, callbacks=[history]),
         #   )
+        
+          estimator = Transformer_gluonts_gas_means( # Transformer_gluonts_gas_means Transformer_gluonts_gas_means_point Transformer_test
+              mean_layer,
+              freq=self.freq,
+              context_length=self.context_length,
+              prediction_length=self.prediction_length,
+              distr_output=StudentTOutput(), # StudentTOutput LaplaceFixedVarianceOutput
+              scaling=False,
+            #   inner_ff_dim_scale= params['inner_ff_dim_scale'],
+            #   model_dim= params['model_dim'],
+            #   embedding_dimension= params['embedding_dimension'],
+            #   num_heads= params['num_heads'],
+            #   dropout_rate= params['dropout_rate'],
+              trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                                     num_batches_per_epoch=100, callbacks=[history]),
+            #   trainer=Trainer(hybridize=False,ctx=self.ctx,epochs=1, learning_rate=5*1e-4,
+            #                          num_batches_per_epoch=100, callbacks=[history]),
+          )
 
         elif self.model == 'wavenet' and not self.multivariate and isinstance(trained_mean_layer, GASNormalizer):
             estimator = WaveNet_gluonts_gas_means(
@@ -411,9 +426,9 @@ class Objective:
         predictor = estimator.train(self.train, self.validation)
         ## EVALUATE
         if not save:
-            test = self.validation
+            test = copy.deepcopy(self.validation) # no need to deep copy but for sanity
         else:
-            test = self.test
+            test = copy.deepcopy(self.test)
         forecast_it, ts_it = make_evaluation_predictions(
             dataset=test,  # test dataset
             predictor=predictor,  # predictor
@@ -481,10 +496,12 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER, n_trials, mean_str
     multivariate = False
     start_time = time.time()
 
-    # mean_strs = [0.5, 0.1, 0.01, 0.001]
-    # var_strs = [0.5, 0.1, 0.01, 0.001]
-    mean_strs = [0]
-    var_strs = [0]
+    if mean_str == -1 and var_str == -1:
+        mean_strs = [0.5, 0.1, 0.01, 0.001]
+        var_strs = [0.5, 0.1, 0.01, 0.001]
+    elif mean_str == 0 and var_str == 0:
+        mean_strs = [0]
+        var_strs = [0]
     best_best_trial = None
     best_str = None
     trial_values = []
@@ -522,6 +539,9 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER, n_trials, mean_str
       trial.params["num_heads"] = trial.params["model_dim_num_heads_pair"][1]
 
     results = []
+    obj = Objective(
+                model_choice,DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate, best_str[0], best_str[1]
+            )
     for i in range(5):
       res, predictor, dir_name, history = obj.train_and_test(trial.params, save=True)
       # plot and save training history

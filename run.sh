@@ -166,13 +166,13 @@
 # nohup python run_norm_w_tuning.py --dataset_name='nn5_weekly' --model_choice='mqcnn' --ctx='gpu' --n_trials=10 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_mqcnn1.out 2>&1 &
 
 # nohup python run_norm_w_tuning.py --dataset_name='m4_weekly' --model_choice='deepar' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_deepar1.out 2>&1 &
-nohup python run_norm_w_tuning.py --dataset_name='m4_weekly' --model_choice='transformer' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_trans1.out 2>&1 &
+# nohup python run_norm_w_tuning.py --dataset_name='m4_weekly' --model_choice='transformer' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_trans1.out 2>&1 &
 # nohup python run_norm_w_tuning.py --dataset_name='m4_weekly' --model_choice='feedforward' --ctx='gpu' --n_trials=10 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_ffn1.out 2>&1 &
 # nohup python run_norm_w_tuning.py --dataset_name='m4_weekly' --model_choice='mqcnn' --ctx='gpu' --n_trials=10 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_mqcnn2.out 2>&1 &
 
 # nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='deepar' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_deepar2.out 2>&1 &
-nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_trans2.out 2>&1 &
-# nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_ffn2.out 2>&1 &
+# nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_trans1.out 2>&1 &
+# nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_ffn1.out 2>&1 &
 # nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='mqcnn' --ctx='gpu' --n_trials=10 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_mqcnn2.out 2>&1 &
 
 # nohup python run_norm_w_tuning.py --dataset_name='nn5_weekly' --model_choice='deepar' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_deepar2.out 2>&1 &
@@ -193,7 +193,7 @@ nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='trans
 
 # nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='deepar' --ctx='gpu' --n_trials=5 > nohup_out/current_gpu_trans_nonorm2.out 2>&1 &
 # nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 > nohup_out/current_gpu_ffn_nonorm1.out 2>&1 &
-# nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 > nohup_out/current_gpu_trans_nonorm2.out 2>&1 &
+# nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 > nohup_out/current_gpu_trans_nonorm1.out 2>&1 &
 # nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='mqcnn' --ctx='gpu' --n_trials=10 > nohup_out/current_gpu_mqcnn_nonorm1.out 2>&1 &
 
 # nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='deepar' --ctx='gpu' --n_trials=5 --standardize > nohup_out/current_gpu_trans_nonorm2.out 2>&1 &
@@ -205,3 +205,18 @@ nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='trans
 # nohup python run_nonorm_w_tuning.py --dataset_name='nn5_weekly' --model_choice='transformer' --ctx='gpu' --n_trials=5 > nohup_out/current_gpu_ffn_nonorm1.out 2>&1 &
 # nohup python run_nonorm_w_tuning.py --dataset_name='nn5_weekly' --model_choice='feedforward' --ctx='gpu' --n_trials=10 > nohup_out/current_gpu_trans_nonorm2.out 2>&1 &
 # nohup python run_nonorm_w_tuning.py --dataset_name='nn5_weekly' --model_choice='mqcnn' --ctx='gpu' --n_trials=10 > nohup_out/current_gpu_mqcnn_nonorm1.out 2>&1 &
+
+
+
+nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_trans1.out 2>&1 &
+nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 --mean_str=0 --var_str=0 > nohup_out/current_gpu_trans2.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 > nohup_out/current_gpu_trans_nonorm1.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 --standardize > nohup_out/current_gpu_trans_nonorm2.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='transformer' --ctx='gpu' --n_trials=5 --batch_norm > nohup_out/current_gpu_trans_nonorm3.out 2>&1 &
+
+nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 --mean_str=-1 --var_str=-1 > nohup_out/current_gpu_ffn1.out 2>&1 &
+nohup python run_norm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 --mean_str=0 --var_str=0 > nohup_out/current_gpu_ffn2.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 > nohup_out/current_gpu_ffn_nonorm1.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 --standardize > nohup_out/current_gpu_ffn_nonorm2.out 2>&1 &
+nohup python run_nonorm_w_tuning.py --dataset_name='fred_md' --model_choice='feedforward' --ctx='gpu' --n_trials=10 --batch_norm > nohup_out/current_gpu_ffn_nonorm3.out 2>&1 &
+
