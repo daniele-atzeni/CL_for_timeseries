@@ -250,8 +250,7 @@ class ForkingSeq2SeqEstimator(GluonEstimator):
         )
         self.enable_encoder_dynamic_feature = enable_encoder_dynamic_feature
         self.enable_decoder_dynamic_feature = enable_decoder_dynamic_feature
-        # self.scaling = scaling if scaling is not None else (quantile_output is None)
-        self.scaling = False
+        self.scaling = scaling if scaling is not None else (quantile_output is None)
         self.scaling_decoder_dynamic_feature = scaling_decoder_dynamic_feature
         self.dtype = dtype
 
@@ -271,7 +270,7 @@ class ForkingSeq2SeqEstimator(GluonEstimator):
         dynamic_feat_fields = []
         remove_field_names = [
             FieldName.FEAT_DYNAMIC_CAT,
-            # FieldName.FEAT_STATIC_REAL,
+            FieldName.FEAT_STATIC_REAL,
         ]
 
         # --- GENERAL TRANSFORMATION CHAIN ---
@@ -280,8 +279,7 @@ class ForkingSeq2SeqEstimator(GluonEstimator):
         if not self.use_past_feat_dynamic_real:
             remove_field_names.append(FieldName.PAST_FEAT_DYNAMIC_REAL)
         if not self.use_feat_dynamic_real:
-            pass  # don't want to remove this
-            # remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
+            remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
         if not self.use_feat_static_cat:
             remove_field_names.append(FieldName.FEAT_STATIC_CAT)
 
@@ -405,7 +403,7 @@ class ForkingSeq2SeqEstimator(GluonEstimator):
                     if self.use_past_feat_dynamic_real
                     else []
                 )
-                + ([FieldName.FEAT_DYNAMIC_REAL]),  #####
+                + (["means_vars"]),  #####
                 encoder_disabled_fields=(
                     [FieldName.FEAT_DYNAMIC]
                     if not self.enable_encoder_dynamic_feature
