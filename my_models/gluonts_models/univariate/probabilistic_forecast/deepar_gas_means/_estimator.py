@@ -295,12 +295,10 @@ class DeepAREstimator(GluonEstimator):
 
     def create_transformation(self) -> Transformation:
         remove_field_names = [FieldName.FEAT_DYNAMIC_CAT]
-        # we will need feat_static_real
-        # if not self.use_feat_static_real:
-        #    remove_field_names.append(FieldName.FEAT_STATIC_REAL)
-        # we will need feat_dynamic_real
-        # if not self.use_feat_dynamic_real:
-        #    remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
+        if not self.use_feat_static_real:
+           remove_field_names.append(FieldName.FEAT_STATIC_REAL)
+        if not self.use_feat_dynamic_real:
+           remove_field_names.append(FieldName.FEAT_DYNAMIC_REAL)
 
         return Chain(
             [RemoveFields(field_names=remove_field_names)]
@@ -309,11 +307,11 @@ class DeepAREstimator(GluonEstimator):
                 if not self.use_feat_static_cat
                 else []
             )
-            # + (
-            #    [SetField(output_field=FieldName.FEAT_STATIC_REAL, value=[0.0])]
-            #    if not self.use_feat_static_real
-            #    else []
-            # )
+            + (
+               [SetField(output_field=FieldName.FEAT_STATIC_REAL, value=[0.0])]
+               if not self.use_feat_static_real
+               else []
+            )
             + [
                 AsNumpyArray(
                     field=FieldName.FEAT_STATIC_CAT,
@@ -354,11 +352,11 @@ class DeepAREstimator(GluonEstimator):
                 VstackFeatures(
                     output_field=FieldName.FEAT_TIME,
                     input_fields=[FieldName.FEAT_TIME, FieldName.FEAT_AGE]
-                    # + (    # we don't want to do this, so we keep the if
-                    #    [FieldName.FEAT_DYNAMIC_REAL]
-                    #    if self.use_feat_dynamic_real
-                    #    else []
-                    # ),
+                    + (
+                       [FieldName.FEAT_DYNAMIC_REAL]
+                       if self.use_feat_dynamic_real
+                       else []
+                    ),
                 ),
             ]
         )
@@ -383,7 +381,7 @@ class DeepAREstimator(GluonEstimator):
             time_series_fields=[
                 FieldName.FEAT_TIME,
                 FieldName.OBSERVED_VALUES,
-                FieldName.FEAT_DYNAMIC_REAL,  ###
+                "means_vars",  ###
             ],
             dummy_value=self.distr_output.value_in_support,
         )
