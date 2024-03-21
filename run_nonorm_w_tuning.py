@@ -26,6 +26,10 @@ from gluonts.mx.model.deepar import DeepAREstimator
 from gluonts.mx.model.wavenet import WaveNetEstimator
 from gluonts.mx.model.seq2seq import MQCNNEstimator
 
+from my_models.gluonts_models.batch_norm.simple_feedforward import SimpleFeedForwardEstimator as FF_batch_norm
+from my_models.gluonts_models.batch_norm.seq2seq import MQCNNEstimator as MQCNN_batch_norm
+from my_models.gluonts_models.batch_norm.transformer import TransformerEstimator as Transformer_batch_norm
+
 import matplotlib.pyplot as plt
 import json
 from pathlib import Path
@@ -152,11 +156,11 @@ class Objective:
       # from my_models.gluonts_models.univariate.probabilistic_forecast.feedforward_test._estimator import SimpleFeedForwardEstimator as FF_test
       if self.model == 'feedforward' and not self.multivariate:
         if self.batch_norm:
-          estimator = SimpleFeedForwardEstimator( # SimpleFeedForwardEstimator FF_test
+          estimator = FF_batch_norm( # SimpleFeedForwardEstimator FF_test
               num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
               prediction_length=self.prediction_length,
               context_length=self.context_length,
-              batch_normalization=True,
+              batch_normalization=False,
               mean_scaling=False,
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                               num_batches_per_epoch=100, callbacks=[history]),
@@ -191,13 +195,13 @@ class Objective:
         )
       elif self.model == 'mqcnn':
         if self.batch_norm:
-          estimator = MQCNNEstimator(
+          estimator = MQCNN_batch_norm(
               freq=self.freq,
               prediction_length=self.prediction_length,
               context_length=self.context_length,
               distr_output=StudentTOutput(),
               quantiles=None,
-              # scaling=True, # default is none, set True to use
+              scaling=False, # default is none, set True to use
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                               num_batches_per_epoch=100, callbacks=[history], hybridize=False),
           )
@@ -221,7 +225,7 @@ class Objective:
               prediction_length=self.prediction_length,
               # num_cells= params['num_cells'],
               # num_layers= params['num_layers'],
-              scaling=True, # True by default
+              scaling=False, # True by default
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                num_batches_per_epoch=100, callbacks=[history]),
           )
@@ -239,7 +243,7 @@ class Objective:
           )
       elif self.model == 'transformer':
         if self.batch_norm:
-          estimator = TransformerEstimator(
+          estimator = Transformer_batch_norm(
               freq=self.freq,
               context_length=self.context_length,
               prediction_length=self.prediction_length,
@@ -249,7 +253,7 @@ class Objective:
               # embedding_dimension= params['embedding_dimension'],
               # num_heads= params['num_heads'],
               # dropout_rate= params['dropout_rate'],
-              scaling=True, # True by default False
+              scaling=False, # True by default False
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                num_batches_per_epoch=100, callbacks=[history]),
           )
@@ -293,7 +297,7 @@ class Objective:
           else:
             final_forecasts.append(f.median)
 
-      if self.standardize and save:
+      if self.standardize:
         final_forecasts = self.data_manager.unstandardize_data(final_forecasts)
         test = self.data_manager.unstandardize_data(test)
 
@@ -304,6 +308,9 @@ class Objective:
 
         y_pred_naive = np.array(training_data)[:-int(self.seasonality)]
         mae_naive = mean_absolute_error(np.array(training_data)[int(self.seasonality):], y_pred_naive, multioutput="uniform_average")
+
+        if self.model == 'mqcnn' and self.batch_norm: 
+           final_forecasts[item_id] = final_forecasts[item_id].reshape(-1)
 
         mae_score = mean_absolute_error(
             np.array(ground_truth),

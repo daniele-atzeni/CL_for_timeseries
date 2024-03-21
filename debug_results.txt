@@ -1,7 +1,7 @@
-##### MEAN: 5.54098770291997 STD: 0.09102309983984451
-##### TRIAL: 5.676626002442109 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
-##### RESULT: 5.493235428655527 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
-##### RESULT: 5.71395309366748 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
-##### RESULT: 5.549454435861121 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
-##### RESULT: 5.463614953547114 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
-##### RESULT: 5.484680602868604 PARAMS: {'num_cells': 76, 'num_layers': 2, 'trainer:learning_rate': 0.0006993136250042328, 'trainer:epochs': 85}
+##### MEAN: 0.9218882411717724 STD: 0.008906619431739494
+##### TRIAL: 0.8137368086616765 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
+##### RESULT: 0.9329813174993223 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
+##### RESULT: 0.9279974051269574 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
+##### RESULT: 0.9127115894571892 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
+##### RESULT: 0.9101344795952443 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
+##### RESULT: 0.9256164141801488 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}

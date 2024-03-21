@@ -25,6 +25,8 @@ from my_models.gluonts_models.batch_norm.transformer import TransformerEstimator
 from my_models.gluonts_models.batch_norm.deepar import DeepAREstimator 
 from gluonts.mx.model.wavenet import WaveNetEstimator
 from my_models.gluonts_models.batch_norm.seq2seq import MQCNNEstimator
+# from gluonts.mx.model.seq2seq import MQCNNEstimator
+
 
 import matplotlib.pyplot as plt
 import json
@@ -168,7 +170,7 @@ class Objective:
               context_length=self.context_length,
               batch_normalization=False,
               mean_scaling=False,
-              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+              trainer=Trainer(ctx=self.ctx,epochs=1, learning_rate=params['trainer:learning_rate'],
                               num_batches_per_epoch=100, callbacks=[history]),
           )
       # elif self.model == 'feedforward' and self.multivariate:
@@ -209,7 +211,7 @@ class Objective:
               distr_output=StudentTOutput(),
               quantiles=None,
               scaling=False, 
-              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+              trainer=Trainer(ctx=self.ctx,epochs=1, learning_rate=params['trainer:learning_rate'],
                               num_batches_per_epoch=100, callbacks=[history], hybridize=False),
           )
       elif self.model == 'deepar':
@@ -304,6 +306,16 @@ class Objective:
 
         y_pred_naive = np.array(training_data)[:-int(self.seasonality)]
         mae_naive = mean_absolute_error(np.array(training_data)[int(self.seasonality):], y_pred_naive, multioutput="uniform_average")
+
+
+        # pickle ground truth and forecast
+        # with open(f'testffn_ground_truth_{item_id}.pkl', 'wb') as f:
+        #     pickle.dump(ground_truth, f)
+        # with open(f'testffn_forecast_{item_id}.pkl', 'wb') as f:
+        #     pickle.dump(final_forecasts[item_id], f)
+        
+        if self.model == 'mqcnn': 
+           final_forecasts[item_id] = final_forecasts[item_id].reshape(-1)
 
         mae_score = mean_absolute_error(
             np.array(ground_truth),

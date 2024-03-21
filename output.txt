@@ -1583,6 +1583,79 @@ trial values: [{'str': (0, 0), 'best_valid_value': 0.490290029568229}]
 with mean_str: 0 and var_str: 0
 with mean: 0.6559992170880176 and std: 0.012222351883834916
 
+ ########################### deepar no norm STD=True 5 trials on m4_weekly Final MASE: 0.509525865771276
+with mean: 0.6013966955737268 and std: 0.01973187656148083
+runtime: 133.58903616148356
+ ########################### deepar no norm STD=True 5 trials on nn5_weekly Final MASE: 0.7608456064016874
+with mean: 0.8626578934441065 and std: 0.03113793456305685
+runtime: 188.53742009745136
+ ########################### mqcnn no norm STD=False 5 trials on fred_md Final MASE: 0.6048429616079146
+with mean: 0.776974089306472 and std: 0.07652863931320601
+runtime: 55.359631631166366
+ ########################### mqcnn no norm STD=True 5 trials on fred_md Final MASE: 0.5552474858383294
+with mean: 0.7117946760663721 and std: 0.03572396931165888
+runtime: 78.26712398048258
+ ########################### deepar no norm STD=False 5 trials on nn5_weekly Final MASE: 0.7390638755509041
+with mean: 1.0437343496460496 and std: 0.23836162941682726
+runtime: 251.43045871048236
+ ########################### deepar no norm STD=False 5 trials on m4_weekly Final MASE: 1.5993621373334281
+with mean: 1.5284726524688446 and std: 0.11984043727469057
+runtime: 183.02386873941674
+ ########################### transformer with gas norm gas means 5 trials on m4_weekly Final MASE: 0.7341950236746747
+trial values: [{'str': (0, 0), 'best_valid_value': 0.7341950236746747}]
+with mean_str: 0 and var_str: 0
+with mean: 0.7589468473807462 and std: 0.044064312537950116
+runtime: 537.2741579993822
+
+ ########################### transformer with gas norm gas means 5 trials on nn5_weekly Final MASE: 0.7239854668105471
+trial values: [{'str': (0, 0), 'best_valid_value': 0.7241081037721352}, {'str': (0.5, 0.5), 'best_valid_value': 0.7239854668105471}, {'str': (0.1, 0.1), 'best_valid_value': 0.7378654446462524}, {'str': (0.01, 0.01), 'best_valid_value': 0.7284709667592365}, {'str': (0.001, 0.001), 'best_valid_value': 0.7337055943006973}]
+with mean_str: 0.5 and var_str: 0.5
+with mean: 0.8284410258191237 and std: 0.03210962311185293
+ ########################### feedforward with gas norm gas means 10 trials on nn5_weekly Final MASE: 0.7502260709856026
+trial values: [{'str': (0, 0), 'best_valid_value': 0.7684716502661635}, {'str': (0.5, 0.5), 'best_valid_value': 0.8142622886571906}, {'str': (0.1, 0.1), 'best_valid_value': 0.7502260709856026}, {'str': (0.01, 0.01), 'best_valid_value': 0.7694453212314404}, {'str': (0.001, 0.001), 'best_valid_value': 0.7584044848942469}]
+with mean_str: 0.1 and var_str: 0.1
+with mean: 0.8813895033425363 and std: 0.030503874401222857
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.989071033691575
+trial values: [{'str': (0, 0), 'best_valid_value': 0.989071033691575}]
+with mean_str: 0 and var_str: 0
+with mean: 0.8091163782317201 and std: 0.12206974373045637
+runtime: 274.07308920738285
+ ########################### feedforward with gas norm gas means 10 trials on m4_weekly Final MASE: 0.4841811475254598
+trial values: [{'str': (0, 0), 'best_valid_value': 0.4841811475254598}, {'str': (0.5, 0.5), 'best_valid_value': 1.2842190439953773}, {'str': (0.1, 0.1), 'best_valid_value': 0.675674625418188}, {'str': (0.01, 0.01), 'best_valid_value': 0.4902499650740676}, {'str': (0.001, 0.001), 'best_valid_value': 0.5190945028222964}]
+with mean_str: 0 and var_str: 0
+with mean: 0.5725637253591248 and std: 0.00945030896815773
+ ########################### transformer with gas norm gas means 5 trials on m4_weekly Final MASE: 0.6257378185653341
+trial values: [{'str': (0, 0), 'best_valid_value': 0.8684669058002483}, {'str': (0.5, 0.5), 'best_valid_value': 0.9858232753243754}, {'str': (0.1, 0.1), 'best_valid_value': 0.7386587650656974}, {'str': (0.01, 0.01), 'best_valid_value': 0.6535815143278668}, {'str': (0.001, 0.001), 'best_valid_value': 0.6257378185653341}]
+with mean_str: 0.001 and var_str: 0.001
+with mean: 0.6856066460031466 and std: 0.05955055523947093
+runtime: 1033.8452547489317
+ ########################### transformer with gas norm gas means 5 trials on fred_md Final MASE: 0.73184601439855
+trial values: [{'str': (0, 0), 'best_valid_value': 2.202070454830667}, {'str': (0.5, 0.5), 'best_valid_value': 1.5105395917782296}, {'str': (0.1, 0.1), 'best_valid_value': 1.156490808907519}, {'str': (0.01, 0.01), 'best_valid_value': 0.8579014118961262}, {'str': (0.001, 0.001), 'best_valid_value': 0.73184601439855}]
+with mean_str: 0.001 and var_str: 0.001
+with mean: 0.7196099794328831 and std: 0.11286800785468999
+runtime: 600.0901656982838
+ ########################### deepar with gas norm gas means 5 trials on fred_md Final MASE: 0.6307825638653822
+trial values: [{'str': (0, 0), 'best_valid_value': 0.6307825638653822}]
+with mean_str: 0 and var_str: 0
+with mean: 0.7184443155743948 and std: 0.10209138574638998
+runtime: 618.4599062088508
+ ########################### deepar with gas norm gas means 5 trials on fred_md Final MASE: 0.643259380879548
+trial values: [{'str': (0, 0), 'best_valid_value': 0.8167336268640437}, {'str': (0.5, 0.5), 'best_valid_value': 1.6221608445515492}, {'str': (0.1, 0.1), 'best_valid_value': 1.2367232839513334}, {'str': (0.01, 0.01), 'best_valid_value': 0.643259380879548}, {'str': (0.001, 0.001), 'best_valid_value': 0.8589896347413709}]
+with mean_str: 0.01 and var_str: 0.01
+with mean: 0.7730266193427819 and std: 0.1933250529367082
+runtime: 815.0313368313325
+ ########################### mqcnn no norm STD=False 5 trials on nn5_weekly Final MASE: 0.9146409947727845
+with mean: 1.042320126916494 and std: 0.054947548536627554
+runtime: 27.207873518417667
+ ########################### mqcnn no norm STD=True 5 trials on nn5_weekly Final MASE: 0.8142073059434362
+with mean: 0.9242166793151337 and std: 0.011888220549997486
+runtime: 42.72109680038411
+ ########################### mqcnn no norm STD=True 5 trials on m4_weekly Final MASE: 0.5354993786583985
+with mean: 0.6596919102471169 and std: 0.023121659154631723
+runtime: 50.61285210066514
+ ########################### mqcnn no norm STD=False 5 trials on m4_weekly Final MASE: 0.7209151697653998
+with mean: 0.7515415593299044 and std: 0.05160755934180751
+runtime: 51.66530257398263
 
 
 
@@ -1591,3 +1664,105 @@ trial values: [{'str': (0, 0), 'best_valid_value': 0.5362222059087154}]
 with mean_str: 0 and var_str: 0
 with mean: 0.5821157733925431 and std: 0.038884454726617515
 runtime: 77.93464643093758
+
+ ########################### feedforward BATCH no norm STD=False 10 trials on nn5_weekly Final MASE: 0.7767285158095084
+with mean: 0.8864029132094755 and std: 0.019504051956805508
+runtime: 40.34135625138879
+ ########################### feedforward BATCH no norm STD=False 10 trials on fred_md Final MASE: 0.5523680479068722
+with mean: 0.6571494581184512 and std: 0.04839377729906027
+runtime: 46.9040908768385
+ ########################### feedforward BATCH no norm STD=False 10 trials on m4_weekly Final MASE: 0.47687910162101355
+with mean: 0.5825013746024951 and std: 0.008370782879592368
+runtime: 56.91968581791346
+ ########################### deepar BATCH no norm STD=False 5 trials on fred_md Final MASE: 6.043022172373024
+with mean: 6.2528556932470405 and std: 0.15353902791058877
+runtime: 67.80254761575101
+ ########################### mqcnn with gas norm gas means 5 trials on fred_md Final MASE: 0.5450963056129671
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5450963056129671}]
+with mean_str: 0 and var_str: 0
+with mean: 0.6676129059213702 and std: 0.05285286847328796
+runtime: 224.9329309957102
+ ########################### transformer BATCH no norm STD=False 5 trials on nn5_weekly Final MASE: 0.8579311940381306
+with mean: 1.5894713482275382 and std: 0.5262518303889698
+runtime: 109.74573720001305
+ ########################### transformer BATCH no norm STD=False 5 trials on m4_weekly Final MASE: 1.458268469150224
+with mean: 1.6894477728842936 and std: 0.04693952494531094
+runtime: 112.43132037525065
+ ########################### transformer BATCH no norm STD=False 5 trials on fred_md Final MASE: 2.122601088067097
+with mean: 2.360852706415593 and std: 0.028637158846523656
+runtime: 117.26391323021768
+ ########################### mqcnn with gas norm gas means 5 trials on m4_weekly Final MASE: 0.6167588288683483
+trial values: [{'str': (0, 0), 'best_valid_value': 0.6167588288683483}]
+with mean_str: 0 and var_str: 0
+with mean: 0.6881166590326779 and std: 0.02182758383595431
+runtime: 263.1664717881707
+ ########################### deepar BATCH no norm STD=False 5 trials on m4_weekly Final MASE: 1.50216892040774
+with mean: 1.4363881765352828 and std: 0.06743910289323073
+runtime: 147.3188752680008
+ ########################### deepar BATCH no norm STD=False 5 trials on nn5_weekly Final MASE: 0.9030544288313851
+with mean: 1.1793283619382666 and std: 0.4629691645210733
+runtime: 162.68262729276904
+ ########################### mqcnn with gas norm gas means 5 trials on nn5_weekly Final MASE: 0.81348070084146
+trial values: [{'str': (0, 0), 'best_valid_value': 0.81348070084146}]
+with mean_str: 0 and var_str: 0
+with mean: 0.9093915745665411 and std: 0.018232960884371974
+runtime: 285.32424611843504
+ ########################### feedforward with gas norm gas means 10 trials on fred_md Final MASE: 0.5081815060547173
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5081815060547173}, {'str': (0.5, 0.5), 'best_valid_value': 3.1246011756447083}, {'str': (0.1, 0.1), 'best_valid_value': 1.0384704390535453}, {'str': (0.01, 0.01), 'best_valid_value': 0.5201539676813529}, {'str': (0.001, 0.001), 'best_valid_value': 0.5239740811862288}]
+with mean_str: 0 and var_str: 0
+with mean: 0.5933370371548486 and std: 0.03071073890338405
+runtime: 298.24976939334687
+ ########################### mqcnn with gas norm gas means 5 trials on nn5_weekly Final MASE: 0.7762389249065863
+trial values: [{'str': (0, 0), 'best_valid_value': 0.8085421219712496}, {'str': (0.5, 0.5), 'best_valid_value': 0.7762389249065863}, {'str': (0.1, 0.1), 'best_valid_value': 0.793340087165566}, {'str': (0.01, 0.01), 'best_valid_value': 0.7826540408050402}, {'str': (0.001, 0.001), 'best_valid_value': 0.8096854319713042}]
+with mean_str: 0.5 and var_str: 0.5
+with mean: 0.8909612383810538 and std: 0.013095946395087047
+runtime: 600.5053190737342
+ ########################### mqcnn with gas norm gas means 5 trials on fred_md Final MASE: 0.5456108870214821
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5708198670030783}, {'str': (0.5, 0.5), 'best_valid_value': 1.5067845073889659}, {'str': (0.1, 0.1), 'best_valid_value': 0.7495244411235525}, {'str': (0.01, 0.01), 'best_valid_value': 0.5930263275069443}, {'str': (0.001, 0.001), 'best_valid_value': 0.5456108870214821}]
+with mean_str: 0.001 and var_str: 0.001
+with mean: 0.6622592159136407 and std: 0.05097396115173532
+runtime: 722.2405190811182
+ ########################### mqcnn with gas norm gas means 5 trials on m4_weekly Final MASE: 0.5478683377242658
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5722374366490037}, {'str': (0.5, 0.5), 'best_valid_value': 0.8581379188641117}, {'str': (0.1, 0.1), 'best_valid_value': 0.6206382719360777}, {'str': (0.01, 0.01), 'best_valid_value': 0.5478683377242658}, {'str': (0.001, 0.001), 'best_valid_value': 0.5606670485599264}]
+with mean_str: 0.01 and var_str: 0.01
+with mean: 0.6730999425301172 and std: 0.026202177734178718
+runtime: 793.4313346236634
+
+ ########################### deepar with gas norm gas means 5 trials on m4_weekly Final MASE: 0.5885245372582663
+trial values: [{'str': (0, 0), 'best_valid_value': 0.5885245372582663}]
+with mean_str: 0 and var_str: 0
+with mean: 0.6503811541198814 and std: 0.06516901602019082
+runtime: 973.2953997147347
+ ########################### feedforward no norm STD=True 10 trials on fred_md Final MASE: 0.5393950872502314
+with mean: 0.593710980347879 and std: 0.024403033358379313
+runtime: 42.26734589051921
+ ########################### feedforward no norm STD=True 10 trials on nn5_weekly Final MASE: 0.7911820351095386
+with mean: 0.8991350897996716 and std: 0.033792045299581915
+runtime: 42.430207541235724
+ ########################### feedforward no norm STD=True 10 trials on m4_weekly Final MASE: 0.4872814686077363
+with mean: 0.5915300826109356 and std: 0.017755774312828772
+runtime: 42.90018928233379
+ ########################### transformer no norm STD=True 5 trials on nn5_weekly Final MASE: 0.7510947623657799
+with mean: 0.8952549521303155 and std: 0.04952204403713525
+runtime: 45.227164842669545
+ ########################### transformer no norm STD=True 5 trials on m4_weekly Final MASE: 0.7099039650697457
+with mean: 0.9528981453800182 and std: 0.14272738960910103
+runtime: 52.66314321250344
+ ########################### mqcnn no norm STD=True 5 trials on m4_weekly Final MASE: 0.5962076713252429
+with mean: 0.7788779027686676 and std: 0.04172918404269458
+runtime: 54.65213724488858
+ ########################### transformer no norm STD=True 5 trials on fred_md Final MASE: 0.7691512088528301
+with mean: 0.7339925855825343 and std: 0.05308330125059271
+runtime: 58.963070280570534
+ ########################### deepar no norm STD=True 5 trials on fred_md Final MASE: 0.7369613053782783
+with mean: 0.6298409665908992 and std: 0.06537957020327542
+runtime: 85.02634227349579
+ ########################### mqcnn no norm STD=True 5 trials on fred_md Final MASE: 0.5552823644620867
+with mean: 0.7682331943328191 and std: 0.08095954160928767
+runtime: 85.81289163089824
+ ########################### deepar no norm STD=True 5 trials on m4_weekly Final MASE: 0.49457576340742554
+with mean: 0.603889320014531 and std: 0.036890818294705766
+runtime: 103.8294443061032
+ ########################### mqcnn no norm STD=True 5 trials on nn5_weekly Final MASE: 0.8137368086616765
+with mean: 0.9218882411717724 and std: 0.008906619431739494
+runtime: 105.30581136874389
