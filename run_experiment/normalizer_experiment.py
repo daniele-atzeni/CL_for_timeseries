@@ -31,7 +31,7 @@ def experiment_normalizer(
     train_dataset, test_dataset = datasets
 
     print("Warming up train dataset...")
-    use_context =  normalizer.mean_strength == 0
+    use_context = normalizer.mean_strength != 0
 
     train_normalizer_params = normalizer.warm_up(
         train_dataset, context_length, initial_guesses, bounds, use_context=use_context

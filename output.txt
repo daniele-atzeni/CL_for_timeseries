@@ -1982,3 +1982,39 @@ trial values: [{'str': (0, 0), 'best_valid_value': 7.322172700802012}, {'str': (
 with mean_str: 0.5 and var_str: 0.5
 with mean: 0.6776462421847662 and std: 0.01324137637476763
 runtime: 1154.7663693772163
+ ########################### mqcnn DEFAULT no norm 5 trials on m4_weekly Final MASE: 0.7828903457654037
+with mean: 0.8116440846732 and std: 0.10290315592644973
+runtime: 22.907919537027677
+ ########################### feedforward STANDARDIZED no norm 10 trials on m4_weekly Final MASE: 0.48139375584325766
+with mean: 0.5940807780819123 and std: 0.022404360299814706
+runtime: 30.796657785198963
+ ########################### feedforward BATCH no norm 10 trials on m4_weekly Final MASE: 0.47808794743449634
+with mean: 0.5777830719040535 and std: 0.017869564812707406
+runtime: 31.288132951028334
+ ########################### mqcnn STANDARDIZED no norm 5 trials on m4_weekly Final MASE: 0.6010436923326197
+with mean: 0.6618972892145897 and std: 0.03340372911476062
+runtime: 32.59930045360234
+ ########################### feedforward DEFAULT no norm 10 trials on m4_weekly Final MASE: 0.46870817336012016
+with mean: 0.5951375029307143 and std: 0.012570082747170542
+runtime: 36.94925843394982
+ ########################### transformer STANDARDIZED no norm 5 trials on m4_weekly Final MASE: 0.7324939503478676
+with mean: 0.7010618533192252 and std: 0.04193932076852736
+runtime: 43.76108137548435
+ ########################### deepar STANDARDIZED no norm 5 trials on m4_weekly Final MASE: 0.4854155677593153
+with mean: 0.5668627319905657 and std: 0.023842750860213174
+runtime: 51.21159570554737
+ ########################### mqcnn BATCH no norm 5 trials on m4_weekly Final MASE: 0.4951385387121184
+with mean: 0.6863544736010185 and std: 0.021931026208627774
+runtime: 57.417246066196824
+ ########################### transformer DEFAULT no norm 5 trials on m4_weekly Final MASE: 2.3694597991729127
+with mean: 2.901775107444837 and std: 0.10894346123776351
+runtime: 62.78732057854844
+ ########################### transformer BATCH no norm 5 trials on m4_weekly Final MASE: 1.4352009197426072
+with mean: 1.6998262156343231 and std: 0.026054285055575027
+runtime: 68.89291623902197
+ ########################### deepar DEFAULT no norm 5 trials on m4_weekly Final MASE: 1.797591832918457
+with mean: 1.8514821956520713 and std: 0.12688511570318314
+runtime: 86.32884211114919
+ ########################### deepar BATCH no norm 5 trials on m4_weekly Final MASE: 1.6848553893400378
+with mean: 1.874029064450093 and std: 0.1607397003655878
+runtime: 96.47336339276904

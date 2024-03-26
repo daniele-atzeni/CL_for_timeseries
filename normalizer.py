@@ -55,6 +55,7 @@ class GASNormalizer:
         context_length: int,
         initial_guesses: np.ndarray,
         bounds: tuple,
+        use_context: bool = True,
     ) -> list:
         """
         This method computes the ideal initial guesses and static parameters for
@@ -77,10 +78,14 @@ class GASNormalizer:
         verbose = 10
         if n_features == 1:
 
-            def ts_inner_func(ts):
+            def ts_inner_func(ts, use_context):
                 ts_initial_guesses = initial_guesses.copy()
-                mean_0 = np.mean(ts[:], axis=0)
-                var_0 = np.var(ts[:], axis=0)
+                if use_context:
+                    mean_0 = np.mean(ts[:context_length], axis=0)
+                    var_0 = np.var(ts[:context_length], axis=0)
+                else:
+                    mean_0 = np.mean(ts[:], axis=0)
+                    var_0 = np.var(ts[:], axis=0)
 
                 def func_to_minimize(x):
                     # we must first unpack the input
@@ -91,11 +96,16 @@ class GASNormalizer:
                 optimal = minimize(
                     func_to_minimize, x0=ts_initial_guesses, bounds=bounds
                 )
+                # check if optimization worked
+                # if not, set initial values as overall mean and var
+                if not optimal.success and use_context:
+                    return ts_inner_func(ts, use_context=False)
+
                 # we need to add the values we compute before the optimization
                 return np.concatenate([mean_0, var_0, optimal.x])
 
             results = Parallel(n_jobs=-1, verbose=verbose)(
-                delayed(ts_inner_func)(ts) for ts in dataset
+                delayed(ts_inner_func)(ts, use_context) for ts in dataset
             )
             return list(results)
         else:
@@ -103,11 +113,15 @@ class GASNormalizer:
                 # we normalize time_series features independently
                 ts_results = []
 
-                def feat_inner_func(feat):
+                def feat_inner_func(feat, use_context):
                     # update initial guesses based on the time series
                     ts_initial_guesses = initial_guesses.copy()
-                    mean_0 = np.mean(ts[:, feat], axis=0)
-                    var_0 = np.var(ts[:, feat], axis=0)
+                    if use_context:
+                        mean_0 = np.mean(ts[:context_length, feat], axis=0)
+                        var_0 = np.var(ts[:context_length, feat], axis=0)
+                    else:
+                        mean_0 = np.mean(ts[:, feat], axis=0)
+                        var_0 = np.var(ts[:, feat], axis=0)
 
                     # we define the function to minimize
                     def func_to_minimize(x):
@@ -121,12 +135,16 @@ class GASNormalizer:
                         x0=ts_initial_guesses,
                         bounds=bounds,
                     )
+                    # check if optimization worked
+                    # if not, set initial values as overall mean and var
+                    if not optimal.success and use_context:
+                        return feat_inner_func(feat, use_context=False)
 
                     return np.concatenate(np.array([mean_0, var_0]), optimal.x)
 
                 # let's run the code for each feature in parallel
                 ts_results = Parallel(n_jobs=-1, verbose=verbose)(
-                    delayed(feat_inner_func)(feat) for feat in range(n_features)
+                    delayed(feat_inner_func)(feat, use_context) for feat in range(n_features)
                 )  # this function mantains the ordering
                 ts_results = np.stack(ts_results, axis=1)  # type: ignore I'm sure it's a list of np.ndarray
 
