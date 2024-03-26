@@ -942,6 +942,11 @@ class DeepARTrainingNetwork(DeepARNetwork):
             F.sqrt(F.squeeze(vars)) + 1e-8
         )
 
+        # modify the padding value
+        batch_size = past_target.asnumpy().shape[0]
+        for i in range(batch_size):
+            norm_past_target[i, past_observed_values[i]==0] = -10   # it should be fine since everything is normalized
+
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
         means_for_mean_l = F.slice_axis(
@@ -1237,6 +1242,11 @@ class DeepARPredictionNetwork(DeepARNetwork):
         norm_past_target = (past_target - F.squeeze(means)) / (
             F.sqrt(F.squeeze(vars)) + 1e-8
         )
+
+        # modify the padding value
+        batch_size = past_target.asnumpy().shape[0]
+        for i in range(batch_size):
+            norm_past_target[i, past_observed_values[i]==0] = -10   # it should be fine since everything is normalized
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values

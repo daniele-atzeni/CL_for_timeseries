@@ -64,7 +64,7 @@ SEASONALITY_MAP = {
 
 class Objective:
 
-    def __init__( self, MODEL, DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=False, standardize=False, batch_norm=False):
+    def __init__( self, MODEL, DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=False, standardize=False, batch_norm=False, mean_scaling=False):
         
         data_manager = GluonTSDataManager(DATASET_NAME, multivariate, DATASET_FILE_FOLDER, standardize)
         self.data_manager = data_manager
@@ -77,6 +77,7 @@ class Objective:
         self.dataset_name = DATASET_NAME
         self.standardize = standardize
         self.batch_norm = batch_norm
+        self.mean_scaling = mean_scaling
         self.seasonality = SEASONALITY_MAP[self.freq]
         if isinstance(self.seasonality, list):
           self.seasonality = min(self.seasonality) # Use to calculate MASE
@@ -165,6 +166,16 @@ class Objective:
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                               num_batches_per_epoch=100, callbacks=[history]),
           )
+        elif self.mean_scaling:
+          estimator = SimpleFeedForwardEstimator(
+              num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
+              prediction_length=self.prediction_length,
+              context_length=self.context_length,
+              batch_normalization=False,
+              mean_scaling=True,
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history]),
+          )
         else:
           estimator = SimpleFeedForwardEstimator(
               num_hidden_dimensions= params['num_hidden_dimensions'], #num_hidden_dimensions,
@@ -205,6 +216,17 @@ class Objective:
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                               num_batches_per_epoch=100, callbacks=[history], hybridize=False),
           )
+        elif self.mean_scaling:
+          estimator = MQCNNEstimator(
+              freq=self.freq,
+              prediction_length=self.prediction_length,
+              context_length=self.context_length,
+              distr_output=StudentTOutput(),
+              quantiles=None,
+              scaling=True, 
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history], hybridize=False),
+          )
         else:
           estimator = MQCNNEstimator(
               freq=self.freq,
@@ -228,6 +250,18 @@ class Objective:
               scaling=False, # True by default
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                num_batches_per_epoch=100, callbacks=[history]),
+          )
+        elif self.mean_scaling:
+          estimator = DeepAREstimator(
+              freq=self.freq,
+              context_length=self.context_length,
+              distr_output=StudentTOutput(),
+              prediction_length=self.prediction_length,
+              # num_cells= params['num_cells'],
+              # num_layers= params['num_layers'],
+              scaling=True, # True by default
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history]),
           )
         else:
           estimator = DeepAREstimator(
@@ -256,6 +290,21 @@ class Objective:
               scaling=False, # True by default False
               trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
                                num_batches_per_epoch=100, callbacks=[history]),
+          )
+        elif self.mean_scaling:
+          estimator = TransformerEstimator(
+              freq=self.freq,
+              context_length=self.context_length,
+              prediction_length=self.prediction_length,
+              distr_output=StudentTOutput(),
+              # inner_ff_dim_scale= params['inner_ff_dim_scale'],
+              # model_dim= params['model_dim'],
+              # embedding_dimension= params['embedding_dimension'],
+              # num_heads= params['num_heads'],
+              # dropout_rate= params['dropout_rate'],
+              scaling=True, # True by default False
+              trainer=Trainer(ctx=self.ctx,epochs=params['trainer:epochs'], learning_rate=params['trainer:learning_rate'],
+                              num_batches_per_epoch=100, callbacks=[history]),
           )
         else:
           estimator = TransformerEstimator(
@@ -337,12 +386,13 @@ class Objective:
 
 
 
-def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multivariate, standardize, batch_norm):
+def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multivariate, standardize, batch_norm, mean_scaling):
 
     start_time = time.perf_counter()
     study = optuna.create_study(direction="minimize")
     obj = Objective(
-            model_choice,DATASET_NAME, ctx, DATASET_FILE_FOLDER, multivariate=multivariate, standardize=standardize, batch_norm=batch_norm
+            model_choice,DATASET_NAME, ctx, DATASET_FILE_FOLDER, 
+            multivariate=multivariate, standardize=standardize, batch_norm=batch_norm, mean_scaling=mean_scaling
         )
     study.optimize(
         obj,
@@ -395,13 +445,13 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multiva
     mean = np.array(results).mean()
     std = np.std(np.array(results))
     # print full results to file
-    with open(f'debug_results.txt', "w") as f:
-        f.write(f'##### MEAN: {mean} STD: {std}\n')
-        f.write(f'##### TRIAL: {trial.value} PARAMS: {trial.params}\n')
-        # f.write(f'##### ALL RESULTS: {results}\n')
-        # print results along with params for the trial
-        for i in range(len(results)):
-            f.write(f'##### RESULT: {results[i]} PARAMS: {params_sets[i]}\n')
+    # with open(f'debug_results.txt', "w") as f:
+    #     f.write(f'##### MEAN: {mean} STD: {std}\n')
+    #     f.write(f'##### TRIAL: {trial.value} PARAMS: {trial.params}\n')
+    #     # f.write(f'##### ALL RESULTS: {results}\n')
+    #     # print results along with params for the trial
+    #     for i in range(len(results)):
+    #         f.write(f'##### RESULT: {results[i]} PARAMS: {params_sets[i]}\n')
     print(f'##### MEAN: {mean} STD: {std}')
 
     trial.params["mase_mean"] = mean
@@ -419,9 +469,13 @@ def run(DATASET_NAME, model_choice, ctx, DATASET_FILE_FOLDER,  n_trials, multiva
     file_path = "output.txt"
     with open(file_path, "a") as file:
         if batch_norm:
-          file.write(f' ########################### {model_choice} BATCH no norm STD={standardize} {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
+          file.write(f' ########################### {model_choice} BATCH no norm {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
+        elif mean_scaling:
+          file.write(f' ########################### {model_choice} MEAN SCALING no norm {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
+        elif standardize:
+          file.write(f' ########################### {model_choice} STANDARDIZED no norm {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
         else:
-           file.write(f' ########################### {model_choice} no norm STD={standardize} {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
+           file.write(f' ########################### {model_choice} DEFAULT no norm {n_trials} trials on {DATASET_NAME} Final MASE: {trial.value}\n')
         
         file.write(f'with mean: {mean} and std: {std}\n')
         file.write(f'runtime: {runtime}\n')
@@ -439,9 +493,18 @@ if __name__ == "__main__":
   parser.add_argument('--n_trials', type=int, default=20)
   parser.add_argument('--dataset_file_folder', type=str, default=None)
   parser.add_argument('--multivariate', action='store_true') # omit = false, --multivariate = true
-  parser.add_argument('--standardize', action='store_true') # omit = false, --multivariate = true
-  parser.add_argument('--batch_norm', action='store_true') # omit = false, --multivariate = true
+  parser.add_argument('--standardize', action='store_true') # omit = false, --standardize = true
+  parser.add_argument('--batch_norm', action='store_true') # omit = false, --batch_norm = true
+  parser.add_argument('--mean_scaling', action='store_true') # omit = false, --mean_scaling = true
   # parser.add_argument('--use_tsf', action='store_true')
   args = parser.parse_args()
   print(args)
-  run(args.dataset_name, args.model_choice, args.ctx, args.dataset_file_folder, args.n_trials, args.multivariate, args.standardize, args.batch_norm)
+  run(args.dataset_name, 
+      args.model_choice, 
+      args.ctx, 
+      args.dataset_file_folder, 
+      args.n_trials, 
+      args.multivariate, 
+      args.standardize, 
+      args.batch_norm,
+      args.mean_scaling)

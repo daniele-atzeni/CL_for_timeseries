@@ -1,7 +1,7 @@
-##### MEAN: 0.9218882411717724 STD: 0.008906619431739494
-##### TRIAL: 0.8137368086616765 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
-##### RESULT: 0.9329813174993223 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
-##### RESULT: 0.9279974051269574 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
-##### RESULT: 0.9127115894571892 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
-##### RESULT: 0.9101344795952443 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
-##### RESULT: 0.9256164141801488 PARAMS: {'trainer:learning_rate': 1.3015446766075483e-05, 'trainer:epochs': 87}
+##### MEAN: 0.6206775877432192 STD: 0.024854670943160833
+##### TRIAL: 0.5122476297144705 PARAMS: {'model_dim_num_heads_pair': (88, 4), 'inner_ff_dim_scale': 3, 'embedding_dimension': 10, 'dropout_rate': 0.42037328857820644, 'trainer:learning_rate': 0.0005469537457567303, 'trainer:epochs': 84, 'model_dim': 88, 'num_heads': 4}
+##### RESULT: 0.6398578858500864 PARAMS: {'model_dim_num_heads_pair': (88, 4), 'inner_ff_dim_scale': 3, 'embedding_dimension': 10, 'dropout_rate': 0.42037328857820644, 'trainer:learning_rate': 0.0005469537457567303, 'trainer:epochs': 84, 'model_dim': 88, 'num_heads': 4}
+##### RESULT: 0.5839893098263731 PARAMS: {'model_dim_num_heads_pair': (88, 4), 'inner_ff_dim_scale': 3, 'embedding_dimension': 10, 'dropout_rate': 0.42037328857820644, 'trainer:learning_rate': 0.0005469537457567303, 'trainer:epochs': 84, 'model_dim': 88, 'num_heads': 4}
+##### RESULT: 0.6457708301252508 PARAMS: {'model_dim_num_heads_pair': (88, 4), 'inner_ff_dim_scale': 3, 'embedding_dimension': 10, 'dropout_rate': 0.42037328857820644, 'trainer:learning_rate': 0.0005469537457567303, 'trainer:epochs': 84, 'model_dim': 88, 'num_heads': 4}
+##### RESULT: 0.6358114042103385 PARAMS: {'model_dim_num_heads_pair': (88, 4), 'inner_ff_dim_scale': 3, 'embedding_dimension': 10, 'dropout_rate': 0.42037328857820644, 'trainer:learning_rate': 0.0005469537457567303, 'trainer:epochs': 84, 'model_dim': 88, 'num_heads': 4}
+##### RESULT: 0.5979585087040472 PARAMS: {'model_dim_num_heads_pair': (88, 4), 'inner_ff_dim_scale': 3, 'embedding_dimension': 10, 'dropout_rate': 0.42037328857820644, 'trainer:learning_rate': 0.0005469537457567303, 'trainer:epochs': 84, 'model_dim': 88, 'num_heads': 4}
