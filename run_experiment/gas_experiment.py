@@ -92,7 +92,7 @@ def run_gas_experiment(
 
     # INITIALIZE DATA MANAGER
     multivariate = dataset_params["multivariate"]
-    data_manager = GluonTSDataManager(dataset_name, multivariate, dataset_file_folder)
+    data_manager = GluonTSDataManager(dataset_name, multivariate, dataset_file_folder, dataset_params["prediction_length"])
 
     # if the dataset is synthetic, we must save it
     if dataset_type == "synthetic":

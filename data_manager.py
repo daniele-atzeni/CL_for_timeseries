@@ -26,7 +26,7 @@ NAME_TO_CONTEXT_AND_PRED = {
 
 class GluonTSDataManager:
     def __init__(
-        self, name: str, multivariate: bool, root_folder: str | None = None
+        self, name: str, multivariate: bool, root_folder: str | None = None, prediction_length: int | None = None
     ) -> None:
         """
         Initialize the data manager. The stored train and test time series are
@@ -39,7 +39,7 @@ class GluonTSDataManager:
 
         self.name = name
         self.multivariate = multivariate
-        self.init_main_dataset(root_folder)
+        self.init_main_dataset(root_folder, prediction_length=prediction_length)
         # data from normalizer
         self.train_means = None
         self.train_vars = None
@@ -47,7 +47,7 @@ class GluonTSDataManager:
         self.test_vars = None
         self.train_params = None
 
-    def init_main_dataset(self, root_folder: str | None) -> None:
+    def init_main_dataset(self, root_folder: str | None, prediction_length: int | None = None) -> None:
         """
         This method must initialize:
         - self.train_dataset
@@ -60,7 +60,8 @@ class GluonTSDataManager:
         either 1D array (univariate) or 2D array (n_feat, ts_length) (multivariate).
         """
         if root_folder is None:
-            gluonts_dataset = gluonts_get_dataset(self.name)
+            regenerate = True if prediction_length is not None else False
+            gluonts_dataset = gluonts_get_dataset(self.name, prediction_length=prediction_length, regenerate=regenerate)
             assert gluonts_dataset.test is not None, "No test dataset"
             # remove all the features we won't use
             # we need only the target, because we will use other fields for
