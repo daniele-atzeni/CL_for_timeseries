@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     DL_MODEL_LIBRARY = "gluonts"  # "gluonts" or "torch"
     # "feedforward" or "transformer" or "deepar" or "wavenet" or "mqcnn"
-    DL_MODEL_NAME = "transformer"
+    DL_MODEL_NAME = "deepar"
 
     if DL_MODEL_NAME == "transformer":
         DL_MODEL_PARAMS = gluonts_transformer_params
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     N_TRAINING_SAMPLES = 5000
     N_TEST_SAMPLES = 1000
 
-    ROOT_FOLDER = f"RESULTS_{DATASET_NAME}_{NORMALIZER_NAME}_{MEAN_LAYER_NAME}_{DL_MODEL_LIBRARY}_{DL_MODEL_NAME}"
+    ROOT_FOLDER = f"ZZZZZTEST_{DATASET_NAME}_{NORMALIZER_NAME}_{MEAN_LAYER_NAME}_{DL_MODEL_LIBRARY}_{DL_MODEL_NAME}"
     if DATASET_PARAMS["multivariate"]:
         ROOT_FOLDER += "_multivariate"
 

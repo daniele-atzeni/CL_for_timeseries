@@ -220,8 +220,8 @@ class ForkingSeq2SeqTrainingNetwork(ForkingSeq2SeqNetworkBase):
         feat_static_cat: Tensor,
         past_observed_values: Tensor,
         future_observed_values: Tensor,
-        past_feat_dynamic_real: Tensor,
-        feat_static_real: Tensor,
+        past_means_vars: Tensor,
+        gas_params: Tensor,
     ) -> Tensor:
         """
         Parameters
@@ -248,11 +248,11 @@ class ForkingSeq2SeqTrainingNetwork(ForkingSeq2SeqNetworkBase):
         loss with shape (batch_size, prediction_length)
         """
         # retrieve the data
-        means = past_feat_dynamic_real.slice(
+        means = past_means_vars.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
         )  # (batch, context_length, 1)
-        vars = past_feat_dynamic_real.slice(
+        vars = past_means_vars.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
         )  # (batch, context_length, 1)
@@ -274,7 +274,7 @@ class ForkingSeq2SeqTrainingNetwork(ForkingSeq2SeqNetworkBase):
         )
         # compute mean layer prediction
         pred_means, pred_vars = self.mean_layer(
-            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, gas_params
         )
 
         # original code
@@ -386,8 +386,8 @@ class ForkingSeq2SeqDistributionPredictionNetwork(ForkingSeq2SeqNetworkBase):
         future_feat_dynamic: Tensor,
         feat_static_cat: Tensor,
         past_observed_values: Tensor,
-        past_feat_dynamic_real: Tensor,
-        feat_static_real: Tensor,
+        past_means_vars: Tensor,
+        gas_params: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Parameters
@@ -412,11 +412,11 @@ class ForkingSeq2SeqDistributionPredictionNetwork(ForkingSeq2SeqNetworkBase):
         scale:
         """
         # retrieve the data
-        means = past_feat_dynamic_real.slice(
+        means = past_means_vars.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
         )  # (batch, context_length, 1)
-        vars = past_feat_dynamic_real.slice(
+        vars = past_means_vars.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
         )  # (batch, context_length, 1)
@@ -437,7 +437,7 @@ class ForkingSeq2SeqDistributionPredictionNetwork(ForkingSeq2SeqNetworkBase):
         )
         # compute mean layer prediction
         pred_means, pred_vars = self.mean_layer(
-            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, gas_params
         )
 
         # original code

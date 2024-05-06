@@ -904,7 +904,8 @@ class DeepARTrainingNetwork(DeepARNetwork):
         future_time_feat: Tensor,
         future_target: Tensor,
         future_observed_values: Tensor,
-        past_feat_dynamic_real: Tensor,  ###
+        past_means_vars: Tensor,  ###
+        gas_params:Tensor,  ###
     ) -> Tensor:
         """
         Computes the loss for training DeepAR, all inputs tensors representing
@@ -927,11 +928,11 @@ class DeepARTrainingNetwork(DeepARNetwork):
         -------
         """
         # retrieve the data
-        means = past_feat_dynamic_real.slice(
+        means = past_means_vars.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
         )  # (batch, context_length, 1)
-        vars = past_feat_dynamic_real.slice(
+        vars = past_means_vars.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
         )  # (batch, context_length, 1)
@@ -940,6 +941,11 @@ class DeepARTrainingNetwork(DeepARNetwork):
         norm_past_target = (past_target - F.squeeze(means)) / (
             F.sqrt(F.squeeze(vars)) + 1e-8
         )
+
+        # modify the padding value
+        batch_size = past_target.asnumpy().shape[0]
+        for i in range(batch_size):
+            norm_past_target[i, past_observed_values[i]==0] = -10   # it should be fine since everything is normalized
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
@@ -954,14 +960,11 @@ class DeepARTrainingNetwork(DeepARNetwork):
         )
         # compute mean layer prediction
         pred_means, pred_vars = self.mean_layer(
-            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, gas_params
         )
 
         # normalize future_target for teacher forcing
         norm_future_target = (future_target - pred_means) / (pred_vars.sqrt() + 1e-8)
-
-        # we don't want to use feat_static_real anymore, so we set it to zeros
-        feat_static_real = F.zeros_like(feat_static_cat)
 
         outputs = self.distribution(
             feat_static_cat=feat_static_cat,
@@ -1205,7 +1208,8 @@ class DeepARPredictionNetwork(DeepARNetwork):
         # (batch_size, prediction_length, num_features)
         future_time_feat: Tensor,
         past_is_pad: Tensor,
-        past_feat_dynamic_real: Tensor,  ###
+        past_means_vars: Tensor,  ###
+        gas_params: Tensor,  ###
     ) -> Tensor:
         """
         Predicts samples, all tensors should have NTC layout.
@@ -1225,11 +1229,11 @@ class DeepARPredictionNetwork(DeepARNetwork):
             Predicted samples
         """
         # retrieve the data
-        means = past_feat_dynamic_real.slice(
+        means = past_means_vars.slice(
             begin=(None, None, 0),
             end=(None, None, 1),
         )  # (batch, context_length, 1)
-        vars = past_feat_dynamic_real.slice(
+        vars = past_means_vars.slice(
             begin=(None, None, 1),
             end=(None, None, 2),
         )  # (batch, context_length, 1)
@@ -1238,6 +1242,11 @@ class DeepARPredictionNetwork(DeepARNetwork):
         norm_past_target = (past_target - F.squeeze(means)) / (
             F.sqrt(F.squeeze(vars)) + 1e-8
         )
+
+        # modify the padding value
+        batch_size = past_target.asnumpy().shape[0]
+        for i in range(batch_size):
+            norm_past_target[i, past_observed_values[i]==0] = -10   # it should be fine since everything is normalized
 
         # in this case, the past_* are not shaped as (batch_size, context_len, ...)
         # but they are longer, so we take only last context_len values
@@ -1252,14 +1261,14 @@ class DeepARPredictionNetwork(DeepARNetwork):
         )
         # compute mean layer prediction
         pred_means, pred_vars = self.mean_layer(
-            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, feat_static_real
+            past_target_for_mean_l, means_for_mean_l, vars_for_mean_l, gas_params
         )
 
         # unroll the decoder in "prediction mode", i.e. with past data only
         _, state, scale, static_feat, imputed_sequence = self.unroll_encoder(
             F=F,
             feat_static_cat=feat_static_cat,
-            feat_static_real=F.zeros_like(feat_static_cat),
+            feat_static_real=feat_static_real,
             past_time_feat=past_time_feat,
             past_target=norm_past_target,
             past_is_pad=past_is_pad,

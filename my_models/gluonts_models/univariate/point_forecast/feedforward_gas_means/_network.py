@@ -126,7 +126,6 @@ class SimpleFeedForwardTrainingNetwork(SimpleFeedForwardNetworkBase):
 
         return F.abs((pred - future_target)).mean(axis=-1)
 
-
 class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
     @validated()
     def __init__(self, num_parallel_samples: int = 100, *args, **kwargs) -> None:
@@ -146,6 +145,7 @@ class SimpleFeedForwardSamplingNetwork(SimpleFeedForwardNetworkBase):
             past_feat_dynamic_real,
             feat_static_real,
         )
+        
         # maybe reshape
         return pred.expand_dims(axis=1)
 

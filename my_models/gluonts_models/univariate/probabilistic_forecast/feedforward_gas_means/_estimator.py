@@ -26,6 +26,7 @@ from gluonts.dataset.loader import (
 )
 from gluonts.model.forecast_generator import DistributionForecastGenerator
 from gluonts.mx.batchify import batchify
+from gluonts.mx import copy_parameters
 from gluonts.mx.distribution import DistributionOutput, StudentTOutput
 from gluonts.mx.model.estimator import GluonEstimator
 from gluonts.mx.model.predictor import RepresentableBlockPredictor
@@ -134,16 +135,19 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     # indicator, ...
     def create_transformation(self) -> Transformation:
         return Chain(
-            [AsNumpyArray(field=FieldName.FEAT_STATIC_REAL, expected_ndim=1)]
-            + [
+            # [AsNumpyArray(field=FieldName.FEAT_STATIC_REAL, expected_ndim=1)]
+            # + 
+            [
                 SelectFields(
                     [
                         FieldName.ITEM_ID,
                         FieldName.INFO,
                         FieldName.START,
                         FieldName.TARGET,
-                        FieldName.FEAT_DYNAMIC_REAL,
-                        FieldName.FEAT_STATIC_REAL,
+                        # FieldName.FEAT_DYNAMIC_REAL,
+                        # FieldName.FEAT_STATIC_REAL,
+                        'means_vars',
+                        'gas_params',
                     ],
                     allow_missing=True,
                 )
@@ -168,8 +172,8 @@ class SimpleFeedForwardEstimator(GluonEstimator):
             past_length=self.context_length,
             future_length=self.prediction_length,
             time_series_fields=[
-                FieldName.FEAT_DYNAMIC_REAL,
-                # FieldName.FEAT_STATIC_REAL,
+                # FieldName.FEAT_DYNAMIC_REAL,
+                'means_vars',
             ],
         )
 
@@ -221,6 +225,28 @@ class SimpleFeedForwardEstimator(GluonEstimator):
     # training network.
     def create_predictor(self, transformation, trained_network):
         prediction_splitter = self._create_instance_splitter("test")
+
+        # point forecasting predictor
+        # prediction_network = MyPredNetwork(
+        #     mean_layer=self.mean_layer,  ## my code here
+        #     num_hidden_dimensions=self.num_hidden_dimensions,
+        #     prediction_length=self.prediction_length,
+        #     context_length=self.context_length,
+        #     distr_output=self.distr_output,
+        #     batch_normalization=self.batch_normalization,
+        #     mean_scaling=self.mean_scaling,
+        # )
+
+        # copy_parameters(trained_network, prediction_network)
+
+        # return RepresentableBlockPredictor(
+        #     input_transform=transformation + prediction_splitter,
+        #     prediction_net=prediction_network,
+        #     batch_size=self.batch_size,
+        #     prediction_length=self.prediction_length,
+        #     ctx=self.trainer.ctx,
+        # )
+
 
         if self.sampling is True:
             prediction_network = SimpleFeedForwardSamplingNetwork(
