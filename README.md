@@ -1,4 +1,4 @@
-# CL_for_timeseries
+# GAS_Norm with SOTA models
 
 Original DAIN github folder with their dataset link : <https://github.com/passalis/dain>
 
